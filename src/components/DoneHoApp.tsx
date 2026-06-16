@@ -1765,9 +1765,9 @@ function Screen12({ username, selectedGoals, goalSliders, tasksPerGoal, totalHou
               {result.type === "D" && "Tasks Vaulted Safely ✓"}
             </div>
             <div className="text-[10px] mt-1">
-              {result.type === "A" && `Missed tasks absorbed by reserve. Remaining: ${(reservePool.totalAvailable || 0).toFixed(1)} hrs. Blueprint unchanged.`}
-              {result.type === "B" && `Reserve covered ${result.mins} mins. Remaining redistributed.`}
-              {result.type === "C" && "Reserve fully used. High Priority protected. Medium/Low redistributed."}
+              {result.type === "A" && `Good news — I'd quietly protected ${(result.mins/60).toFixed(1)} hrs of reserve time this week. We just used it to absorb today's missed tasks. Blueprint unchanged.`}
+              {result.type === "B" && `Hidden reserve covered ${result.mins} mins of what life took. The remainder is redistributed across the week.`}
+              {result.type === "C" && "Reserve fully used. High Priority tasks protected. Medium and Low redistributed."}
               {result.type === "D" && `Tasks moved to Saturday Vault. Vault holds ${vaultedTasks.length} items.`}
             </div>
           </div>
