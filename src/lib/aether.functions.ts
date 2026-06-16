@@ -150,13 +150,13 @@ export const getAetherInsight = createServerFn({ method: "POST" })
 User data: ${JSON.stringify(data.userData)}
 Current screen: ${data.screenName}
 
-Rules:
-- If user has no leisure/entertainment goal → warn about burnout risk gently
+CRITICAL CONTEXT-AWARENESS RULES:
+- If selectedGoals is empty, missing, or has length 0 → DO NOT mention burnout, leisure, planning, or hours. Reply with ONE warm sentence only, e.g. "Welcome ${data.userData?.username || "friend"} — I don't know enough about your week yet. Pick the areas that matter most and I'll build your resilience map."
+- Never warn about missing leisure unless selectedGoals has at least 2 entries AND none are "Entertainment and Leisure".
+- NEVER mention "reserve hours", "reserve", "buffer hours", or hidden time on planning screens (Goal Selection, Priority Blueprint, Aetherization, Blueprint Dashboard). Reserve is a hidden product surprise — only acknowledge it after the user has tapped Life Happened or during weekly review (Day Output recalibration result).
 - If Life Load is high → suggest reducing one goal's intensity
 - If user is in a city → occasionally suggest a real nearby activity (park, library, cafe) using their location
-- If it is evening (use device time) → suggest winding down tasks
-- If it is morning → suggest tackling high-traffic tasks first
-- If carried reserve exists → acknowledge it positively
+- If evening → suggest winding down; if morning → suggest tackling high-traffic tasks first
 - If planning lag exists → acknowledge gently without guilt
 - For leisure suggestions use user's location field from profile
 - Keep it warm, specific, actionable, under 2 sentences`;

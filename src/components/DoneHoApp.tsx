@@ -343,6 +343,18 @@ export default function DoneHoApp() {
               setAetherInsights={setAetherInsights}
             />
           )}
+          {screen === 13 && (
+            <Screen13
+              username={username}
+              userProfile={userProfile}
+              selectedGoals={selectedGoals}
+              resilienceScore={resilienceScore}
+              reservePool={reservePool}
+              vaultedTasks={vaultedTasks}
+              totalHoursPerDay={totalHoursPerDay}
+              onNav={(s: number) => goNext(s)}
+            />
+          )}
         </div>
       </div>
     </div>
@@ -959,7 +971,7 @@ function Screen5({ username, selectedGoals, goalSliders, setGoalSliders, onActiv
   if (cs?.volatility > 8 && cr?.traffic > 7) warns.push("When childcare gets intense I'll shift career to passive mode.");
   const st = goalSliders["Study and Learning"];
   if (st?.traffic > 7 && cr?.traffic > 7) warns.push("Two high-focus goals! I'll separate with recovery buffers.");
-  if (!selectedGoals.includes("Entertainment and Leisure")) warns.push("No leisure planned. Burnout risk detected.");
+  if (selectedGoals.length >= 2 && !selectedGoals.includes("Entertainment and Leisure")) warns.push("No leisure planned. Consider adding a recovery goal.");
 
   return (
     <div className="p-4 flex flex-col min-h-full relative">
@@ -1119,9 +1131,9 @@ function Screen6({ username, selectedGoals, goalSliders, totalHoursPerDay, setTo
             className={`btn-copper px-3 py-1 text-[10px] ${pct === 100 ? "glow-pulse" : ""}`}>Aether-ize</button>
         </div>
       </div>
-      <p className="text-[9px] italic text-[#5a3a20] mt-1">{hourSuggestion}</p>
+      <p className="text-[9px] italic text-[#5a3a20] mt-1">Recommended planning range: {hourSuggestion}</p>
       {totalHoursPerDay > 0 && (
-        <p className="text-[9px] text-[#2d4a1e] mt-0.5">Available: {Math.max(0, totalHoursPerDay - 0.5)} hrs/day · 0.5 hr/day held in reserve</p>
+        <p className="text-[9px] text-[#2d4a1e] mt-0.5">Planning capacity locked: {Math.max(0, totalHoursPerDay - 0.5)} hrs/day of focused work.</p>
       )}
       <AetherProactiveInsight
         screenName="Aetherization"
@@ -1306,12 +1318,8 @@ function Screen8({ username, selectedGoals, goalSliders, tasksPerGoal, totalHour
         <div className="flex flex-col">
           <div className="flex items-center gap-1 bg-[#2d4a1e] rounded-full px-2 py-0.5 text-[10px] text-[#e8d5b0]">
             <span>🔒</span>
-            <span>{totalHoursPerDay || 6} hrs/day</span>
+            <span>{totalHoursPerDay || 6} hrs/day planned</span>
           </div>
-          <span className="text-[8px] text-[#5a3a20] mt-0.5">
-            {reservePool?.currentWeekRemaining ?? 3.5} hrs reserve this week
-            {reservePool?.carriedFromLastWeek > 0 && ` + ${reservePool.carriedFromLastWeek} hrs carried`}
-          </span>
         </div>
         <div className="flex-1 text-right text-[10px] bg-[#b87333] text-white rounded-full px-2 py-0.5">{getWeekRange()}</div>
       </div>
@@ -1389,8 +1397,7 @@ function BottomNav({ vault, onNav, active }: { vault: number; onNav: (s: number)
     { icon: "🏠", label: "Dashboard", screen: 8 },
     { icon: "📋", label: "Blueprint", screen: 8 },
     { icon: "☀️", label: "Day", screen: 12 },
-    { icon: "🔒", label: "Vault", screen: 8, badge: vault },
-    { icon: "👤", label: "Profile", screen: 3 },
+    { icon: "👤", label: "Profile", screen: 13 },
   ];
   return (
     <div className="flex justify-around items-center py-1.5 border-t-2 border-[#b87333]" style={{ background: "#2d4a1e" }}>
@@ -1398,9 +1405,6 @@ function BottomNav({ vault, onNav, active }: { vault: number; onNav: (s: number)
         <button key={it.label} onClick={() => onNav(it.screen)} className="flex flex-col items-center text-[#e8d5b0] relative">
           <span className="text-lg">{it.icon}</span>
           <span className="text-[8px]">{it.label}</span>
-          {it.badge !== undefined && it.badge > 0 && (
-            <span className="absolute -top-1 right-2 bg-[#c44b3e] text-white text-[8px] rounded-full px-1">{it.badge}</span>
-          )}
           {active === it.screen && <div className="absolute -bottom-1.5 w-1 h-1 rounded-full bg-[#d4a843]" />}
         </button>
       ))}
@@ -1741,9 +1745,8 @@ function Screen12({ username, selectedGoals, goalSliders, tasksPerGoal, totalHou
       {missed.length > 0 && !result && (
         <div className="px-3 py-2 space-y-1">
           <div className="text-[10px] text-[#2c1810]">Tasks missed: {missed.length} | Time: {missedMin} mins</div>
-          <div className="text-[10px] text-[#2c1810]">Reserve available: {(reservePool.totalAvailable || 0).toFixed(1)} hrs</div>
           <button onClick={lifeHappened} className="btn-copper w-full py-2 text-xs">LIFE HAPPENED</button>
-          <div className="text-[9px] text-center text-[#5a3a20]">Reserve hours this week: {(reservePool.currentWeekRemaining || 0).toFixed(1)}{reservePool.carriedFromLastWeek > 0 && ` + ${reservePool.carriedFromLastWeek.toFixed(1)} carried`}</div>
+          <div className="text-[9px] text-center text-[#5a3a20] italic">Aether will recalibrate — no guilt, no penalty.</div>
         </div>
       )}
 
@@ -1770,9 +1773,9 @@ function Screen12({ username, selectedGoals, goalSliders, tasksPerGoal, totalHou
               {result.type === "D" && "Tasks Vaulted Safely ✓"}
             </div>
             <div className="text-[10px] mt-1">
-              {result.type === "A" && `Missed tasks absorbed by reserve. Remaining: ${(reservePool.totalAvailable || 0).toFixed(1)} hrs. Blueprint unchanged.`}
-              {result.type === "B" && `Reserve covered ${result.mins} mins. Remaining redistributed.`}
-              {result.type === "C" && "Reserve fully used. High Priority protected. Medium/Low redistributed."}
+              {result.type === "A" && `Good news — I'd quietly protected ${(result.mins/60).toFixed(1)} hrs of reserve time this week. We just used it to absorb today's missed tasks. Blueprint unchanged.`}
+              {result.type === "B" && `Hidden reserve covered ${result.mins} mins of what life took. The remainder is redistributed across the week.`}
+              {result.type === "C" && "Reserve fully used. High Priority tasks protected. Medium and Low redistributed."}
               {result.type === "D" && `Tasks moved to Saturday Vault. Vault holds ${vaultedTasks.length} items.`}
             </div>
           </div>
@@ -1782,6 +1785,65 @@ function Screen12({ username, selectedGoals, goalSliders, tasksPerGoal, totalHou
       )}
 
       <BottomNav vault={vaultedTasks.length} onNav={onNav} active={12} />
+    </div>
+  );
+}
+
+// ============ SCREEN 13 PROFILE ============
+function Screen13({ username, userProfile, selectedGoals, resilienceScore, reservePool, vaultedTasks, totalHoursPerDay, onNav }: any) {
+  const reserveProtected = ((reservePool?.usedThisWeek || 0)).toFixed(1);
+  const tasksPlanned = selectedGoals.length * 4;
+  return (
+    <div className="flex flex-col h-full">
+      <div className="p-4 flex items-center justify-between">
+        <Logo size={26} />
+        <ResilienceGauge score={resilienceScore} />
+      </div>
+      <div className="px-4 flex flex-col items-center">
+        <div className="w-20 h-20 rounded-full flex items-center justify-center text-3xl"
+          style={{ background: "radial-gradient(circle, #d4a843, #b87333 60%, #6b3f1a)", border: "3px solid #6b3f1a", color: "#fff" }}>
+          {(username?.[0] || "?").toUpperCase()}
+        </div>
+        <h2 className="font-serif-d text-[22px] font-bold text-[#2c1810] mt-2">{username || "Friend"}</h2>
+        <div className="text-[11px] text-[#5a3a20]">{userProfile?.location || "Earth"} · DoneHo member</div>
+      </div>
+
+      <div className="px-4 mt-4">
+        <div className="text-[11px] font-bold text-[#2c1810] mb-2">Weekly Stats</div>
+        <div className="grid grid-cols-2 gap-2">
+          {[
+            { label: "Weeks Planned", value: "1" },
+            { label: "Tasks Planned", value: String(tasksPlanned) },
+            { label: "Hours Recovered", value: reserveProtected },
+            { label: "Burnout Prevented", value: String(vaultedTasks?.length || 0) },
+          ].map((s) => (
+            <div key={s.label} className="bg-[#e8d5a3] border border-[#b87333] rounded-lg p-2">
+              <div className="text-[18px] font-bold text-[#2d4a1e]">{s.value}</div>
+              <div className="text-[9px] text-[#5a3a20]">{s.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="px-4 mt-4">
+        <div className="rounded-xl p-3 text-white" style={{ background: "linear-gradient(135deg,#2d4a1e,#6b3f1a)", border: "2px solid #d4a843" }}>
+          <div className="flex items-center justify-between">
+            <div className="font-bold text-[14px]">DoneHo Plus</div>
+            <span className="text-[9px] bg-[#d4a843] text-[#2c1810] px-2 py-0.5 rounded-full font-bold">Premium</span>
+          </div>
+          <ul className="text-[10px] mt-2 space-y-0.5 text-[#e8d5b0]">
+            <li>• Adaptive Blueprint Rebalancing</li>
+            <li>• Smart Spend AI</li>
+            <li>• Opportunity Map Pro</li>
+            <li>• Family Coordination</li>
+            <li>• Weekly Insight Reports</li>
+          </ul>
+          <button className="btn-copper w-full mt-2 py-1.5 text-[11px]">Unlock for ₹199/mo</button>
+        </div>
+      </div>
+
+      <div className="flex-1" />
+      <BottomNav vault={vaultedTasks?.length || 0} onNav={onNav} active={13} />
     </div>
   );
 }
