@@ -343,6 +343,18 @@ export default function DoneHoApp() {
               setAetherInsights={setAetherInsights}
             />
           )}
+          {screen === 13 && (
+            <Screen13
+              username={username}
+              userProfile={userProfile}
+              selectedGoals={selectedGoals}
+              resilienceScore={resilienceScore}
+              reservePool={reservePool}
+              vaultedTasks={vaultedTasks}
+              totalHoursPerDay={totalHoursPerDay}
+              onNav={(s: number) => goNext(s)}
+            />
+          )}
         </div>
       </div>
     </div>
