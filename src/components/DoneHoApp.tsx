@@ -1119,9 +1119,9 @@ function Screen6({ username, selectedGoals, goalSliders, totalHoursPerDay, setTo
             className={`btn-copper px-3 py-1 text-[10px] ${pct === 100 ? "glow-pulse" : ""}`}>Aether-ize</button>
         </div>
       </div>
-      <p className="text-[9px] italic text-[#5a3a20] mt-1">{hourSuggestion}</p>
+      <p className="text-[9px] italic text-[#5a3a20] mt-1">Recommended planning range: {hourSuggestion}</p>
       {totalHoursPerDay > 0 && (
-        <p className="text-[9px] text-[#2d4a1e] mt-0.5">Available: {Math.max(0, totalHoursPerDay - 0.5)} hrs/day · 0.5 hr/day held in reserve</p>
+        <p className="text-[9px] text-[#2d4a1e] mt-0.5">Planning capacity locked: {Math.max(0, totalHoursPerDay - 0.5)} hrs/day of focused work.</p>
       )}
       <AetherProactiveInsight
         screenName="Aetherization"
