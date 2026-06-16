@@ -1737,9 +1737,8 @@ function Screen12({ username, selectedGoals, goalSliders, tasksPerGoal, totalHou
       {missed.length > 0 && !result && (
         <div className="px-3 py-2 space-y-1">
           <div className="text-[10px] text-[#2c1810]">Tasks missed: {missed.length} | Time: {missedMin} mins</div>
-          <div className="text-[10px] text-[#2c1810]">Reserve available: {(reservePool.totalAvailable || 0).toFixed(1)} hrs</div>
           <button onClick={lifeHappened} className="btn-copper w-full py-2 text-xs">LIFE HAPPENED</button>
-          <div className="text-[9px] text-center text-[#5a3a20]">Reserve hours this week: {(reservePool.currentWeekRemaining || 0).toFixed(1)}{reservePool.carriedFromLastWeek > 0 && ` + ${reservePool.carriedFromLastWeek.toFixed(1)} carried`}</div>
+          <div className="text-[9px] text-center text-[#5a3a20] italic">Aether will recalibrate — no guilt, no penalty.</div>
         </div>
       )}
 
