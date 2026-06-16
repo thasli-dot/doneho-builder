@@ -959,7 +959,7 @@ function Screen5({ username, selectedGoals, goalSliders, setGoalSliders, onActiv
   if (cs?.volatility > 8 && cr?.traffic > 7) warns.push("When childcare gets intense I'll shift career to passive mode.");
   const st = goalSliders["Study and Learning"];
   if (st?.traffic > 7 && cr?.traffic > 7) warns.push("Two high-focus goals! I'll separate with recovery buffers.");
-  if (!selectedGoals.includes("Entertainment and Leisure")) warns.push("No leisure planned. Burnout risk detected.");
+  if (selectedGoals.length >= 2 && !selectedGoals.includes("Entertainment and Leisure")) warns.push("No leisure planned. Consider adding a recovery goal.");
 
   return (
     <div className="p-4 flex flex-col min-h-full relative">
