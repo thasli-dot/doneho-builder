@@ -1385,8 +1385,7 @@ function BottomNav({ vault, onNav, active }: { vault: number; onNav: (s: number)
     { icon: "🏠", label: "Dashboard", screen: 8 },
     { icon: "📋", label: "Blueprint", screen: 8 },
     { icon: "☀️", label: "Day", screen: 12 },
-    { icon: "🔒", label: "Vault", screen: 8, badge: vault },
-    { icon: "👤", label: "Profile", screen: 3 },
+    { icon: "👤", label: "Profile", screen: 13 },
   ];
   return (
     <div className="flex justify-around items-center py-1.5 border-t-2 border-[#b87333]" style={{ background: "#2d4a1e" }}>
@@ -1394,9 +1393,6 @@ function BottomNav({ vault, onNav, active }: { vault: number; onNav: (s: number)
         <button key={it.label} onClick={() => onNav(it.screen)} className="flex flex-col items-center text-[#e8d5b0] relative">
           <span className="text-lg">{it.icon}</span>
           <span className="text-[8px]">{it.label}</span>
-          {it.badge !== undefined && it.badge > 0 && (
-            <span className="absolute -top-1 right-2 bg-[#c44b3e] text-white text-[8px] rounded-full px-1">{it.badge}</span>
-          )}
           {active === it.screen && <div className="absolute -bottom-1.5 w-1 h-1 rounded-full bg-[#d4a843]" />}
         </button>
       ))}
