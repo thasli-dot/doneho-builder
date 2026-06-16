@@ -1306,12 +1306,8 @@ function Screen8({ username, selectedGoals, goalSliders, tasksPerGoal, totalHour
         <div className="flex flex-col">
           <div className="flex items-center gap-1 bg-[#2d4a1e] rounded-full px-2 py-0.5 text-[10px] text-[#e8d5b0]">
             <span>🔒</span>
-            <span>{totalHoursPerDay || 6} hrs/day</span>
+            <span>{totalHoursPerDay || 6} hrs/day planned</span>
           </div>
-          <span className="text-[8px] text-[#5a3a20] mt-0.5">
-            {reservePool?.currentWeekRemaining ?? 3.5} hrs reserve this week
-            {reservePool?.carriedFromLastWeek > 0 && ` + ${reservePool.carriedFromLastWeek} hrs carried`}
-          </span>
         </div>
         <div className="flex-1 text-right text-[10px] bg-[#b87333] text-white rounded-full px-2 py-0.5">{getWeekRange()}</div>
       </div>
