@@ -1788,3 +1788,62 @@ function Screen12({ username, selectedGoals, goalSliders, tasksPerGoal, totalHou
     </div>
   );
 }
+
+// ============ SCREEN 13 PROFILE ============
+function Screen13({ username, userProfile, selectedGoals, resilienceScore, reservePool, vaultedTasks, totalHoursPerDay, onNav }: any) {
+  const reserveProtected = ((reservePool?.usedThisWeek || 0)).toFixed(1);
+  const tasksPlanned = selectedGoals.length * 4;
+  return (
+    <div className="flex flex-col h-full">
+      <div className="p-4 flex items-center justify-between">
+        <Logo size={26} />
+        <ResilienceGauge score={resilienceScore} />
+      </div>
+      <div className="px-4 flex flex-col items-center">
+        <div className="w-20 h-20 rounded-full flex items-center justify-center text-3xl"
+          style={{ background: "radial-gradient(circle, #d4a843, #b87333 60%, #6b3f1a)", border: "3px solid #6b3f1a", color: "#fff" }}>
+          {(username?.[0] || "?").toUpperCase()}
+        </div>
+        <h2 className="font-serif-d text-[22px] font-bold text-[#2c1810] mt-2">{username || "Friend"}</h2>
+        <div className="text-[11px] text-[#5a3a20]">{userProfile?.location || "Earth"} · DoneHo member</div>
+      </div>
+
+      <div className="px-4 mt-4">
+        <div className="text-[11px] font-bold text-[#2c1810] mb-2">Weekly Stats</div>
+        <div className="grid grid-cols-2 gap-2">
+          {[
+            { label: "Weeks Planned", value: "1" },
+            { label: "Tasks Planned", value: String(tasksPlanned) },
+            { label: "Hours Recovered", value: reserveProtected },
+            { label: "Burnout Prevented", value: String(vaultedTasks?.length || 0) },
+          ].map((s) => (
+            <div key={s.label} className="bg-[#e8d5a3] border border-[#b87333] rounded-lg p-2">
+              <div className="text-[18px] font-bold text-[#2d4a1e]">{s.value}</div>
+              <div className="text-[9px] text-[#5a3a20]">{s.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="px-4 mt-4">
+        <div className="rounded-xl p-3 text-white" style={{ background: "linear-gradient(135deg,#2d4a1e,#6b3f1a)", border: "2px solid #d4a843" }}>
+          <div className="flex items-center justify-between">
+            <div className="font-bold text-[14px]">DoneHo Plus</div>
+            <span className="text-[9px] bg-[#d4a843] text-[#2c1810] px-2 py-0.5 rounded-full font-bold">Premium</span>
+          </div>
+          <ul className="text-[10px] mt-2 space-y-0.5 text-[#e8d5b0]">
+            <li>• Adaptive Blueprint Rebalancing</li>
+            <li>• Smart Spend AI</li>
+            <li>• Opportunity Map Pro</li>
+            <li>• Family Coordination</li>
+            <li>• Weekly Insight Reports</li>
+          </ul>
+          <button className="btn-copper w-full mt-2 py-1.5 text-[11px]">Unlock for ₹199/mo</button>
+        </div>
+      </div>
+
+      <div className="flex-1" />
+      <BottomNav vault={vaultedTasks?.length || 0} onNav={onNav} active={13} />
+    </div>
+  );
+}
