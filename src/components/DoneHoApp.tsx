@@ -52,14 +52,79 @@ const GOAL_ICONS: Record<string, string> = {
   "Spiritual and Mindfulness": "🕯️",
 };
 
-// Placeholder milestone generator (mock — will be swapped for backend later)
+// Placeholder milestone generator (mock — will be swapped for backend later).
+// Keyword-based so cards feel specific to the task, not generic filler.
 function mockMilestones(task: string): string[] {
-  const t = task.trim();
-  if (!t) return [];
+  const raw = task.trim();
+  if (!raw) return [];
+  const t = raw.toLowerCase();
+  const has = (...words: string[]) => words.some((w) => t.includes(w));
+
+  if (has("learn", "study", "course", "python", "coding", "language", "spanish", "french"))
+    return [
+      `Mon: 25-min intro session on ${raw}`,
+      `Wed: hands-on exercise + short notes`,
+      `Sun: 15-min recap and pick next micro-topic`,
+    ];
+  if (has("read", "book", "article"))
+    return [
+      `Split ${raw} into 3 sittings (~20 pages each)`,
+      `Mid-week: capture 3 highlights + one question`,
+      `Weekend: 10-min reflection, decide next read`,
+    ];
+  if (has("workout", "gym", "run", "cardio", "strength", "yoga", "stretch", "walk", "cycle", "swim"))
+    return [
+      `Mon / Wed / Fri: 30-min ${raw} block`,
+      `Tue or Thu: light mobility + hydration check`,
+      `Sun: 10-min review — reps, RPE, one tweak`,
+    ];
+  if (has("meditat", "mindful", "breath", "journal", "gratitude", "pray"))
+    return [
+      `Daily: 8-min ${raw} at wake or wind-down`,
+      `Mid-week: 2-line reflection on what shifted`,
+      `Sun: pick one intention for next week`,
+    ];
+  if (has("cook", "recipe", "meal", "diet", "grocer"))
+    return [
+      `Sun: plan 3 ${raw} + one grocery list`,
+      `Tue: prep one base (grain / protein / veg)`,
+      `Fri: try one new twist, note the winner`,
+    ];
+  if (has("save", "budget", "invest", "finance", "expense", "money"))
+    return [
+      `Mon: 15-min sweep of last week's spend`,
+      `Wed: move fixed amount to ${raw} bucket`,
+      `Sun: 10-min review, adjust next week's cap`,
+    ];
+  if (has("write", "blog", "essay", "draft", "portfolio"))
+    return [
+      `Mon: outline 3 bullets for ${raw}`,
+      `Wed: 40-min focused draft block`,
+      `Sat: edit pass + share with one person`,
+    ];
+  if (has("clean", "declutter", "organize", "laundry", "kitchen", "home"))
+    return [
+      `Split ${raw} into 3 zones over the week`,
+      `Mid-week: 20-min reset on the busiest zone`,
+      `Sun: quick sweep + restock any essentials`,
+    ];
+  if (has("call", "friend", "family", "date", "partner", "social"))
+    return [
+      `Pick 2 people to reach out to for ${raw}`,
+      `Wed: 20-min call or coffee scheduled`,
+      `Sun: send one thoughtful follow-up`,
+    ];
+  if (has("plan", "review", "goal", "roadmap", "strategy"))
+    return [
+      `Mon: 20-min scoping pass on ${raw}`,
+      `Wed: refine top 3 priorities`,
+      `Sun: retro — what moved, what to drop`,
+    ];
+  // Default — still task-specific, not generic filler.
   return [
-    `Kick off — outline first steps for "${t}"`,
-    `Mid-week — one focused block on "${t}"`,
-    `Wrap — quick review and next action`,
+    `Mon: 20-min kick-off block on ${raw}`,
+    `Wed: focused mid-week session, 30 min`,
+    `Sun: 10-min review + one small next step`,
   ];
 }
 
