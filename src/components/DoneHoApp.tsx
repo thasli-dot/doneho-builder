@@ -949,19 +949,75 @@ function Screen6({ username, selectedGoals, goalSliders, totalHoursPerDay, setTo
 }
 
 // ============ SCREEN 6.5 — GOAL CLARIFICATION ============
-function collectVagueTasks(selectedGoals: string[], tasksPerGoal: Record<string, string[]>) {
-  const vague: { goal: string; index: number; text: string }[] = [];
+// Only flag tasks that are genuinely ambiguous. Self-evident single-word tasks
+// like "Meditation", "Workout", or "Cooking" should never trigger a question.
+type VagueTask = { goal: string; index: number; text: string; question: string };
+
+const SELF_EVIDENT = new Set([
+  "meditation","meditate","workout","exercise","yoga","stretch","stretching",
+  "cooking","cook","reading","journal","journaling","prayer","walk","walking",
+  "running","cycling","swimming","cleaning","laundry","groceries","sleep",
+  "nap","hydration","breakfast","lunch","dinner",
+]);
+
+const AMBIGUOUS_SINGLES = new Set([
+  "learn","study","improve","practice","work","fitness","health","finance",
+  "money","goals","review","plan","reading","project",
+]);
+
+function clarifyQuestionFor(raw: string): string | null {
+  const t = raw.trim();
+  if (!t) return null;
+  const lower = t.toLowerCase();
+  const words = lower.split(/\s+/);
+
+  // Self-evident single-word or short tasks — never ask.
+  if (words.length === 1 && SELF_EVIDENT.has(lower)) return null;
+  if (words.length <= 2 && words.every((w) => SELF_EVIDENT.has(w))) return null;
+
+  // Only these categories trigger a tailored ask when short/underspecified.
+  const isShort = words.length <= 2;
+  const has = (...arr: string[]) => arr.some((w) => lower.includes(w));
+
+  if (has("learn", "study", "master") && isShort)
+    return `For "${t}" — starting from scratch, or brushing up?`;
+  if (has("workout", "fitness", "gym", "train") && isShort)
+    return `For "${t}" — which type: cardio, strength, or mobility?`;
+  if (has("read", "book") && isShort)
+    return `For "${t}" — fiction, non-fiction, or a specific title in mind?`;
+  if (has("write", "blog", "draft", "essay") && isShort)
+    return `For "${t}" — long-form pieces or short daily entries?`;
+  if (has("save", "budget", "invest", "money", "finance") && isShort)
+    return `For "${t}" — saving, budgeting, or investing focus?`;
+  if (has("cook", "recipe", "meal") && isShort)
+    return `For "${t}" — any cuisine or dietary preference to focus on?`;
+  if (has("practice") && isShort)
+    return `For "${t}" — roughly how many minutes a day feels right?`;
+  if (has("improve", "work on", "get better") && isShort)
+    return `For "${t}" — what would "better" look like this week?`;
+
+  // Truly single ambiguous word ("Learn", "Study", "Improve") with no object.
+  if (words.length === 1 && AMBIGUOUS_SINGLES.has(lower))
+    return `"${t}" is a bit broad — what specifically this week?`;
+
+  return null;
+}
+
+function collectVagueTasks(selectedGoals: string[], tasksPerGoal: Record<string, string[]>): VagueTask[] {
+  const vague: VagueTask[] = [];
   selectedGoals.forEach((g) => {
     (tasksPerGoal[g] ?? []).forEach((t, i) => {
       const clean = t.trim();
       if (!clean) return;
-      if (clean.split(/\s+/).length < 3) vague.push({ goal: g, index: i, text: clean });
+      const q = clarifyQuestionFor(clean);
+      if (q) vague.push({ goal: g, index: i, text: clean, question: q });
     });
   });
   return vague;
 }
 
 function ScreenClarify({ username, selectedGoals, tasksPerGoal, setTasksPerGoal, onDone }: any) {
+  void username;
   const vague = useMemo(() => collectVagueTasks(selectedGoals, tasksPerGoal), [selectedGoals, tasksPerGoal]);
   const [idx, setIdx] = useState(0);
   const [answer, setAnswer] = useState("");
@@ -970,11 +1026,9 @@ function ScreenClarify({ username, selectedGoals, tasksPerGoal, setTasksPerGoal,
 
   if (vague.length === 0) return null;
   const current = vague[idx];
-  const clarifyQuestion = `For "${current.text}" — starting from scratch, or brushing up?`;
 
   const submit = () => {
     if (answer.trim()) {
-      // Append the user's answer to the task text to enrich it — placeholder logic
       const arr = [...(tasksPerGoal[current.goal] ?? [])];
       arr[current.index] = `${current.text} (${answer.trim()})`;
       setTasksPerGoal({ ...tasksPerGoal, [current.goal]: arr });
@@ -993,7 +1047,7 @@ function ScreenClarify({ username, selectedGoals, tasksPerGoal, setTasksPerGoal,
       <div className="mt-4 flex items-start gap-2 fade-in" key={idx}>
         <Aether size={38} />
         <div className="bg-[#e8d5a3] border-2 border-[#b87333] rounded-2xl rounded-tl-sm p-3 text-[12px] text-[#2c1810]">
-          {clarifyQuestion}
+          {current.question}
         </div>
       </div>
 
