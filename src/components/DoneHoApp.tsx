@@ -461,6 +461,7 @@ export default function DoneHoApp() {
               onNav={(s: number) => goNext(s)}
             />
           )}
+          </ScreenBoundary>
         </div>
       </div>
     </div>
