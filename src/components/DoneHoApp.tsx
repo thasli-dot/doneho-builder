@@ -1298,7 +1298,7 @@ function Screen8(props: any) {
             value={disruption}
             onChange={(e) => setDisruption(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && submitDisruption()}
-            placeholder="Something happened? Tell me."
+            placeholder="Something changed today — good or bad? Tell Aether."
             className="flex-1 bg-[#e8d5a3] text-[#2c1810] rounded-full px-3 py-1 text-[11px] outline-none border border-[#b87333]"
           />
           <button onClick={submitDisruption} className="btn-copper px-3 py-1 text-[10px]">Send</button>
