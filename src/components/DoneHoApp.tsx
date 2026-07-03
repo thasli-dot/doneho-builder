@@ -10,68 +10,67 @@ interface GoalSliders { volatility: number; traffic: number; }
 interface TaskItem { id: string; goal: string; name: string; minutes: number; done: boolean; }
 
 // ============ CONSTANTS ============
+// The 10 official goal categories from the frozen build brief
 const DEFAULT_GOALS = [
-  "Health and Wellness",
   "Study and Learning",
-  "Entertainment and Leisure",
+  "Career and Work",
+  "Health and Wellness",
+  "Family and Childcare",
+  "Financial Planning",
   "Life Skills and Improvement",
-  "Finance Planning and Budget",
-  "Household Management",
-  "Child/Elderly Care",
-  "Career Planning",
+  "Relationships and Social",
+  "Home and Household",
+  "Leisure and Recreation",
+  "Spiritual and Mindfulness",
 ];
 
-const GOAL_DEFAULTS: Record<string, GoalSliders> = {
-  "Career Planning": { volatility: 5, traffic: 8 },
-  "Child/Elderly Care": { volatility: 9, traffic: 7 },
-  "Health and Wellness": { volatility: 3, traffic: 5 },
-  "Household Management": { volatility: 6, traffic: 3 },
-  "Finance Planning and Budget": { volatility: 2, traffic: 7 },
-  "Entertainment and Leisure": { volatility: 1, traffic: 1 },
-  "Study and Learning": { volatility: 4, traffic: 8 },
-  "Life Skills and Improvement": { volatility: 3, traffic: 5 },
-};
+const LEISURE_GOALS = new Set(["Leisure and Recreation", "Spiritual and Mindfulness"]);
 
-const GOAL_MULTIPLIERS: Record<string, number> = {
-  "Child/Elderly Care": 1.3,
-  "Career Planning": 1.2,
-  "Study and Learning": 1.1,
-  "Health and Wellness": 0.8,
-  "Household Management": 0.9,
-  "Entertainment and Leisure": -0.5,
-  "Finance Planning and Budget": 1.0,
-  "Life Skills and Improvement": 0.9,
+const GOAL_DEFAULTS: Record<string, GoalSliders> = {
+  "Study and Learning": { volatility: 4, traffic: 8 },
+  "Career and Work": { volatility: 5, traffic: 8 },
+  "Health and Wellness": { volatility: 3, traffic: 5 },
+  "Family and Childcare": { volatility: 9, traffic: 7 },
+  "Financial Planning": { volatility: 2, traffic: 7 },
+  "Life Skills and Improvement": { volatility: 3, traffic: 5 },
+  "Relationships and Social": { volatility: 5, traffic: 3 },
+  "Home and Household": { volatility: 6, traffic: 3 },
+  "Leisure and Recreation": { volatility: 1, traffic: 1 },
+  "Spiritual and Mindfulness": { volatility: 1, traffic: 2 },
 };
 
 const GOAL_ICONS: Record<string, string> = {
-  "Health and Wellness": "🌿",
   "Study and Learning": "📚",
-  "Entertainment and Leisure": "🎭",
+  "Career and Work": "💼",
+  "Health and Wellness": "🌿",
+  "Family and Childcare": "👶",
+  "Financial Planning": "💰",
   "Life Skills and Improvement": "⚙️",
-  "Finance Planning and Budget": "💰",
-  "Household Management": "🏠",
-  "Child/Elderly Care": "👶",
-  "Career Planning": "💼",
+  "Relationships and Social": "🫶",
+  "Home and Household": "🏠",
+  "Leisure and Recreation": "🎭",
+  "Spiritual and Mindfulness": "🕯️",
 };
 
-function suggestionFor(task: string): string {
-  const t = task.toLowerCase();
-  if (/(course|module|class)/.test(t)) return "Integrate with low focus kitchen works. Use 1.5x speed for recap.";
-  if (/(interview|prep|mock)/.test(t)) return "AI Mocks, mirror self interviews, practice with Yoodli app.";
-  if (/(project|portfolio|freelance)/.test(t)) return "Connect with freelancers, check out peers in DoneHo community.";
-  if (/(notes|writing|documentation)/.test(t)) return "Voice notes in mobile recorder, AI voice to text conversion.";
-  if (/(feeding|baby|infant)/.test(t)) return "Work division with partner, pumping & storing, age-specific toys.";
-  if (/(workout|exercise|gym)/.test(t)) return "Combine with audio learning, track with wearable, morning slot preferred.";
-  if (/(cooking|meal|kitchen)/.test(t)) return "Batch cook weekends, 3-tier steamer, combine with podcast.";
-  if (/(budget|finance|savings)/.test(t)) return "Use Walnut or YNAB, review weekly, automate SIPs.";
-  if (/(meditation|yoga)/.test(t)) return "Morning slot before phone, breathing exercises, 10 mins minimum.";
-  if (/(reading|book|study)/.test(t)) return "Text-to-speech during commute, 20 pages per day minimum.";
-  if (/(cleaning|chores)/.test(t)) return "Batch on weekends, delegate to family, robotic vacuum daily.";
-  if (/(health|recovery)/.test(t)) return "Combine gentle movement with audio, track symptoms daily.";
-  return "Break into 10-minute chunks. Track daily. Celebrate small wins.";
+// Placeholder milestone generator (mock — will be swapped for backend later)
+function mockMilestones(task: string): string[] {
+  const t = task.trim();
+  if (!t) return [];
+  return [
+    `Kick off — outline first steps for "${t}"`,
+    `Mid-week — one focused block on "${t}"`,
+    `Wrap — quick review and next action`,
+  ];
 }
 
-// ============ SUB COMPONENTS ============
+function focusFor(sliders: GoalSliders | undefined) {
+  const combined = (sliders?.traffic ?? 5) + (sliders?.volatility ?? 5);
+  if (combined >= 14) return { label: "High focus", color: "#ec4899" };
+  if (combined >= 8) return { label: "Medium focus", color: "#06b6d4" };
+  return { label: "Low focus", color: "#d4843a" };
+}
+
+// ============ SHARED UI ATOMS ============
 function Logo({ size = 28 }: { size?: number }) {
   return (
     <div className="flex items-center gap-2">
@@ -94,10 +93,7 @@ function Logo({ size = 28 }: { size?: number }) {
 
 function BigGear({ size = 80, spin = false, rev = false }: { size?: number; spin?: boolean; rev?: boolean }) {
   return (
-    <svg
-      width={size} height={size} viewBox="0 0 100 100"
-      className={spin ? (rev ? "gear-spin-rev" : "gear-spin") : ""}
-    >
+    <svg width={size} height={size} viewBox="0 0 100 100" className={spin ? (rev ? "gear-spin-rev" : "gear-spin") : ""}>
       <defs>
         <radialGradient id="cg" cx="50%" cy="40%">
           <stop offset="0%" stopColor="#e8b85a" />
@@ -123,7 +119,7 @@ function BigGear({ size = 80, spin = false, rev = false }: { size?: number; spin
 function Aether({ size = 44 }: { size?: number }) {
   return (
     <div
-      className="relative flex items-center justify-center rounded-full"
+      className="relative flex items-center justify-center rounded-full shrink-0"
       style={{
         width: size, height: size,
         background: "radial-gradient(circle at 35% 35%, #d4a843, #b87333 70%, #6b3f1a)",
@@ -150,24 +146,6 @@ function ProgressBar({ pct, label }: { pct: number; label?: string }) {
   );
 }
 
-function ResilienceGauge({ score }: { score: number }) {
-  const label = score >= 90 ? "Thriving" : score >= 70 ? "Resilient" : score >= 50 ? "Recovering" : "Rebuilding";
-  return (
-    <div className="flex flex-col items-center">
-      <div
-        className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-sm"
-        style={{
-          background: "radial-gradient(circle, #d4a843, #b87333 60%, #6b3f1a)",
-          border: "2px solid #6b3f1a",
-        }}
-      >
-        {score}
-      </div>
-      <span className="text-[9px] text-[#2c1810] font-semibold mt-0.5">{label}</span>
-    </div>
-  );
-}
-
 function AetherProactiveInsight({ screenName, userData, cache, setCache }: any) {
   const [insight, setInsight] = useState<string>(cache[screenName] || "");
   const [loading, setLoading] = useState(!cache[screenName]);
@@ -184,16 +162,14 @@ function AetherProactiveInsight({ screenName, userData, cache, setCache }: any) 
       const res = await fetchInsight({ data: { screenName, userData } });
       setInsight(res);
       setCache({ ...cache, [screenName]: res });
-    } catch (e) {
+    } catch {
       setInsight("I'm recalibrating my gears... tap refresh to try again ⚙️");
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    load();
-  }, [screenName, JSON.stringify(userData)]); // re-run if major data changes
+  useEffect(() => { load(); }, [screenName, JSON.stringify(userData)]);
 
   return (
     <div className="flex items-start gap-2 mt-2 fade-in">
@@ -210,15 +186,33 @@ function AetherProactiveInsight({ screenName, userData, cache, setCache }: any) 
   );
 }
 
+// ============ LIFE LOAD (frozen formula from brief) ============
+// LifeLoad = 100 × (0.35·avg_Traffic + 0.35·avg_Volatility + 0.30·CommitmentRatio)
+// CommitmentRatio = 0.75 placeholder until backend supplies real value.
+const COMMITMENT_RATIO = 0.75;
+function computeLifeLoad(selected: string[], sliders: Record<string, GoalSliders>): number {
+  if (selected.length === 0) return 0;
+  let vSum = 0, tSum = 0;
+  selected.forEach((g) => {
+    const s = sliders[g] ?? { volatility: 5, traffic: 5 };
+    vSum += s.volatility;
+    tSum += s.traffic;
+  });
+  const avgV = (vSum / selected.length) / 10; // normalise 0-1
+  const avgT = (tSum / selected.length) / 10;
+  const load = 100 * (0.35 * avgT + 0.35 * avgV + 0.30 * COMMITMENT_RATIO);
+  return Math.round(load * 10) / 10;
+}
+
 // ============ MAIN APP ============
 export default function DoneHoApp() {
-  // ---- GLOBAL STATE ----
   const [screen, setScreen] = useState<number>(1);
   const [username, setUsername] = useState<string>("");
+  const [profession, setProfession] = useState<string>("");
   const [selectedGoals, setSelectedGoals] = useState<GoalKey[]>([]);
   const [allGoals, setAllGoals] = useState<string[]>(DEFAULT_GOALS);
   const [goalSliders, setGoalSliders] = useState<Record<string, GoalSliders>>({});
-  const [totalHoursPerDay, setTotalHoursPerDay] = useState<number>(0);
+  const [totalHoursPerDay, setTotalHoursPerDay] = useState<number>(5); // default midpoint of recommended range
   const [tasksPerGoal, setTasksPerGoal] = useState<Record<string, string[]>>({});
   const [resilienceScore, setResilienceScore] = useState<number>(70);
   const [reservePool, setReservePool] = useState({
@@ -229,10 +223,13 @@ export default function DoneHoApp() {
     history: [] as string[]
   });
   const [planningLag, setPlanningLag] = useState({ tasks: [] as string[], totalMins: 0 });
-  const [userProfile, setUserProfile] = useState<{ location?: string }>({});
+  const [userProfile, setUserProfile] = useState<{ age?: string; gender?: string; location?: string }>({});
   const [aetherInsights, setAetherInsights] = useState<Record<string, string>>({});
   const [panelCache, setPanelCache] = useState<Record<string, any>>({});
   const [vaultedTasks, setVaultedTasks] = useState<string[]>([]);
+  const [refinementSeen, setRefinementSeen] = useState(false);
+  const [refinementNotes, setRefinementNotes] = useState<string[]>([]);
+  const [regenTick, setRegenTick] = useState(0); // bumps to force blueprint reshuffle animation
 
   const goNext = (n: number) => { setScreen(n); window.scrollTo(0, 0); };
 
@@ -240,18 +237,15 @@ export default function DoneHoApp() {
     <div className="min-h-screen w-full flex items-center justify-center" style={{ background: "#1a1410" }}>
       <div
         className="parchment-bg relative overflow-hidden shadow-2xl"
-        style={{
-          width: 375, height: 812,
-          boxShadow: "0 30px 80px rgba(0,0,0,0.6), 0 0 0 1px #6b3f1a",
-        }}
+        style={{ width: 375, height: 812, boxShadow: "0 30px 80px rgba(0,0,0,0.6), 0 0 0 1px #6b3f1a" }}
       >
         <div key={screen} className="fade-in w-full h-full overflow-y-auto thin-scroll">
           {screen === 1 && <Screen1 onJoin={(u) => { setUsername(u); goNext(3); }} onLogin={() => goNext(2)} />}
           {screen === 2 && <Screen2 onVerified={() => goNext(3)} onSignup={() => goNext(1)} />}
           {screen === 3 && (
-            <Screen3
-              onContinue={(name, loc) => { setUsername(name); setUserProfile({ location: loc }); goNext(4); }}
-              onSkip={() => { if (!username) setUsername("Friend"); goNext(4); }}
+            <Screen3Chat
+              seedName={username}
+              onDone={(name, prof) => { setUsername(name); setProfession(prof); goNext(4); }}
             />
           )}
           {screen === 4 && (
@@ -262,9 +256,9 @@ export default function DoneHoApp() {
               selectedGoals={selectedGoals}
               setSelectedGoals={setSelectedGoals}
               onGenerate={() => {
-                const sliders: Record<string, GoalSliders> = {};
+                const sliders: Record<string, GoalSliders> = { ...goalSliders };
                 selectedGoals.forEach((g) => {
-                  sliders[g] = GOAL_DEFAULTS[g] ?? { volatility: 5, traffic: 5 };
+                  if (!sliders[g]) sliders[g] = GOAL_DEFAULTS[g] ?? { volatility: 5, traffic: 5 };
                 });
                 setGoalSliders(sliders);
                 goNext(5);
@@ -296,10 +290,23 @@ export default function DoneHoApp() {
               setTotalHoursPerDay={setTotalHoursPerDay}
               tasksPerGoal={tasksPerGoal}
               setTasksPerGoal={setTasksPerGoal}
-              reservePool={reservePool}
-              onAetherize={() => goNext(7)}
+              onAetherize={() => {
+                // Skip clarification silently if no vague tasks
+                const vague = collectVagueTasks(selectedGoals, tasksPerGoal);
+                if (vague.length === 0) goNext(7);
+                else goNext(65);
+              }}
               aetherInsights={aetherInsights}
               setAetherInsights={setAetherInsights}
+            />
+          )}
+          {screen === 65 && (
+            <ScreenClarify
+              username={username}
+              selectedGoals={selectedGoals}
+              tasksPerGoal={tasksPerGoal}
+              setTasksPerGoal={setTasksPerGoal}
+              onDone={() => goNext(7)}
             />
           )}
           {screen === 7 && <Screen7 username={username} onContinue={() => goNext(8)} />}
@@ -309,17 +316,23 @@ export default function DoneHoApp() {
               selectedGoals={selectedGoals}
               goalSliders={goalSliders}
               tasksPerGoal={tasksPerGoal}
+              setTasksPerGoal={setTasksPerGoal}
+              setSelectedGoals={setSelectedGoals}
+              setGoalSliders={setGoalSliders}
               totalHoursPerDay={totalHoursPerDay}
-              resilienceScore={resilienceScore}
               vaultedTasks={vaultedTasks}
-              reservePool={reservePool}
-              planningLag={planningLag}
               onNav={(s: number) => goNext(s)}
               userProfile={userProfile}
               aetherInsights={aetherInsights}
               setAetherInsights={setAetherInsights}
               panelCache={panelCache}
               setPanelCache={setPanelCache}
+              refinementSeen={refinementSeen}
+              setRefinementSeen={setRefinementSeen}
+              refinementNotes={refinementNotes}
+              setRefinementNotes={setRefinementNotes}
+              regenTick={regenTick}
+              setRegenTick={setRegenTick}
             />
           )}
           {screen === 12 && (
@@ -346,12 +359,11 @@ export default function DoneHoApp() {
           {screen === 13 && (
             <Screen13
               username={username}
+              profession={profession}
               userProfile={userProfile}
+              setUserProfile={setUserProfile}
               selectedGoals={selectedGoals}
-              resilienceScore={resilienceScore}
-              reservePool={reservePool}
               vaultedTasks={vaultedTasks}
-              totalHoursPerDay={totalHoursPerDay}
               onNav={(s: number) => goNext(s)}
             />
           )}
@@ -370,350 +382,131 @@ function Screen1({ onJoin, onLogin }: { onJoin: (u: string) => void; onLogin: ()
   const [showCpw, setShowCpw] = useState(false);
 
   const submit = () => {
-    if (!email || !pw || !cpw) return toast.error("All fields required");
-    if (!email.includes("@") && !/^[A-Za-z0-9._-]{3,}$/.test(email)) return toast.error("Please enter valid email");
-    if (email.includes("@") && !email.includes("@")) return toast.error("Please enter valid email");
-    if (pw.length < 6) return toast.error("Password must be at least 6 characters");
+    if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return toast.error("Enter a valid email");
+    if (pw.length < 6) return toast.error("Password must be 6+ characters");
     if (pw !== cpw) return toast.error("Passwords don't match");
-    const uname = email.includes("@") ? email.split("@")[0] : email;
-    toast.success("Welcome to DoneHo!");
-    onJoin(uname);
+    const uname = email.split("@")[0].replace(/[^a-z]/gi, "") || "Friend";
+    onJoin(uname.charAt(0).toUpperCase() + uname.slice(1));
   };
 
   return (
-    <div className="p-5 pt-6 flex flex-col items-center min-h-full">
-      <div className="flex flex-col items-center mb-6">
-        <BigGear size={68} />
-        <h1 className="font-serif-d text-[36px] font-bold text-[#2c1810] mt-1">DoneHo</h1>
-        <p className="text-[13px] text-[#2c1810] font-semibold">Better Days for the Best</p>
-        <p className="text-[11px] italic text-[#5a3a20] mt-0.5 mb-4">Your day, synchronized</p>
-        
-        <div className="bg-[#e8d5a3]/70 border border-[#b87333]/50 rounded-xl p-4 text-center space-y-2 w-full max-w-[320px]">
-          <h3 className="font-bold text-[#2d4a1e] text-[14px]">Your Personal Resilience Engine</h3>
-          <p className="text-[12px] text-[#2c1810] leading-snug">
-            DoneHo isn't just a task list. It builds a personalized weekly blueprint based on your life load, 
-            available hours, and unexpected interruptions. No guilt, no stress.
-          </p>
+    <div className="p-6 flex flex-col items-center min-h-full">
+      <div className="mt-4"><BigGear size={72} spin /></div>
+      <Logo size={36} />
+      <p className="text-[11px] italic text-[#5a3a20] mt-1">Better Days for the Best</p>
+      <h2 className="font-serif-d text-[22px] font-bold text-[#2c1810] mt-6">Join DoneHo</h2>
+
+      <div className="w-full space-y-3 mt-4">
+        <div className="input-pill flex items-center gap-2"><span>✉️</span>
+          <input className="flex-1 bg-transparent outline-none" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
+        </div>
+        <div className="input-pill flex items-center gap-2"><span>🔒</span>
+          <input type={showPw ? "text" : "password"} className="flex-1 bg-transparent outline-none" placeholder="Password" value={pw} onChange={(e) => setPw(e.target.value)} />
+          <button onClick={() => setShowPw(!showPw)} className="text-[#8a5424] text-xs">{showPw ? "🙈" : "👁"}</button>
+        </div>
+        <div className="input-pill flex items-center gap-2"><span>🔒</span>
+          <input type={showCpw ? "text" : "password"} className="flex-1 bg-transparent outline-none" placeholder="Confirm password" value={cpw} onChange={(e) => setCpw(e.target.value)} />
+          <button onClick={() => setShowCpw(!showCpw)} className="text-[#8a5424] text-xs">{showCpw ? "🙈" : "👁"}</button>
         </div>
       </div>
 
-      <div className="w-full mt-5 space-y-3">
-        <input className="input-pill" placeholder="Email or Username" value={email} onChange={(e) => setEmail(e.target.value)} />
-        <div className="relative">
-          <input
-            className="input-pill pr-10" type={showPw ? "text" : "password"}
-            placeholder="Password" value={pw} onChange={(e) => setPw(e.target.value)}
-          />
-          <button onClick={() => setShowPw(!showPw)} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#8a5424]">
-            {showPw ? "🙈" : "👁"}
-          </button>
-        </div>
-        <div className="relative">
-          <input
-            className="input-pill pr-10" type={showCpw ? "text" : "password"}
-            placeholder="Confirm Password" value={cpw} onChange={(e) => setCpw(e.target.value)}
-          />
-          <button onClick={() => setShowCpw(!showCpw)} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#8a5424]">
-            {showCpw ? "🙈" : "👁"}
-          </button>
-        </div>
-      </div>
-
-      <button onClick={submit} className="btn-olive w-full mt-5 py-3 flex items-center justify-center gap-2 text-sm">
-        <span>⚙️</span> Join DoneHo (Sign up)
-      </button>
-
-      <div className="mt-auto pt-6 flex items-center gap-2">
-        <span className="text-[12px] text-[#2c1810]">Already a user?</span>
-        <button onClick={onLogin} className="btn-olive px-4 py-1.5 text-xs">Log In 🔒</button>
-      </div>
+      <button onClick={submit} className="btn-copper w-full mt-4 py-3 text-sm">Create account</button>
+      <button onClick={onLogin} className="mt-3 text-[12px] text-[#2c1810] underline">Already have an account? Log in</button>
     </div>
   );
 }
 
 // ============ SCREEN 2 LOGIN ============
 function Screen2({ onVerified, onSignup }: { onVerified: () => void; onSignup: () => void }) {
-  const [tab, setTab] = useState<"phone" | "email">("phone");
-  const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
-  const [otpSent, setOtpSent] = useState(false);
-  const [otp, setOtp] = useState(["", "", "", ""]);
-  const [countdown, setCountdown] = useState(0);
-  const [verified, setVerified] = useState(false);
-  const refs = useRef<(HTMLInputElement | null)[]>([]);
+  const [pw, setPw] = useState("");
 
-  useEffect(() => {
-    if (countdown > 0) {
-      const t = setTimeout(() => setCountdown(countdown - 1), 1000);
-      return () => clearTimeout(t);
-    }
-  }, [countdown]);
-
-  const onOtp = (i: number, v: string) => {
-    if (!/^\d?$/.test(v)) return;
-    const arr = [...otp];
-    arr[i] = v;
-    setOtp(arr);
-    if (v && i < 3) refs.current[i + 1]?.focus();
-  };
-  const onOtpKey = (i: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Backspace" && !otp[i] && i > 0) refs.current[i - 1]?.focus();
-  };
-
-  const isInputValid = tab === "phone" ? /^\d{10}$/.test(phone) : email.includes("@");
-
-  const sendOtp = () => {
-    setOtpSent(true);
-    toast.success("OTP sent successfully! ✅");
-    setCountdown(45);
-  };
-
-  const verify = () => {
-    if (otp.join("").length !== 4) return toast.error("Please enter 4-digit OTP");
-    setVerified(true);
-    setTimeout(onVerified, 1000);
+  const submit = () => {
+    if (!email.trim()) return toast.error("Enter your email");
+    if (pw.length < 4) return toast.error("Enter your password");
+    onVerified();
   };
 
   return (
-    <div className="p-5 flex flex-col items-center min-h-full">
-      <Logo size={38} />
-      <h2 className="font-serif-d text-[28px] font-bold text-[#2c1810] mt-3">Login</h2>
-
-      <div className="flex w-full mt-3 border-b-2 border-[#b87333]/30">
-        {(["phone", "email"] as const).map((t) => (
-          <button key={t} onClick={() => { setTab(t); setOtpSent(false); setOtp(["","","",""]); }}
-            className={`flex-1 py-2 text-sm font-semibold relative ${tab === t ? "text-[#2c1810]" : "text-[#5a3a20]/60"}`}>
-            {t === "phone" ? "Phone Number" : "Email ID"}
-            {tab === t && <div className="absolute bottom-[-2px] left-1/4 right-1/4 h-1 bg-[#b87333] rounded" />}
-          </button>
-        ))}
-      </div>
-
-      <div className="w-full mt-4">
-        {tab === "phone" ? (
-          <div className="input-pill flex items-center gap-2">
-            <span>🇮🇳 +91</span>
-            <input className="flex-1 bg-transparent outline-none" inputMode="numeric" maxLength={10}
-              value={phone} onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))} placeholder="10-digit mobile" />
-          </div>
-        ) : (
-          <input className="input-pill" type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
-        )}
-      </div>
-
-      {!otpSent && (
-        <button onClick={sendOtp} disabled={!isInputValid}
-          className={`btn-olive w-full mt-5 py-3 text-sm ${!isInputValid ? 'opacity-40 grayscale' : ''}`}>
-          Send OTP
-        </button>
-      )}
-
-      {otpSent && (
-        <div className="w-full mt-4 fade-in">
-          <div className="text-[12px] text-[#2c1810] font-semibold mb-2 text-center">Mobile OTP / Email OTP</div>
-          <div className="flex gap-2 justify-center">
-            {otp.map((v, i) => (
-              <input
-                key={i}
-                ref={(el) => { refs.current[i] = el; }}
-                value={v} onChange={(e) => onOtp(i, e.target.value)} onKeyDown={(e) => onOtpKey(i, e)}
-                maxLength={1} inputMode="numeric"
-                className="w-12 h-12 text-center text-lg font-bold rounded-lg"
-                style={{ background: "#e8d5a3", border: "2px solid #b87333", color: "#2c1810" }}
-              />
-            ))}
-          </div>
-
-          <button onClick={verify} className="btn-olive w-full mt-5 py-3 text-sm relative">
-            {verified ? <span className="text-2xl">✅</span> : "Verify OTP"}
-          </button>
-
-          {countdown > 0 ? (
-            <div className="mt-3 text-[12px] text-[#5a3a20]/70 font-semibold text-center">
-              Resend OTP in 0:{countdown.toString().padStart(2, "0")}
-            </div>
-          ) : (
-            <button onClick={sendOtp} className="mt-3 text-[12px] text-[#2d4a1e] font-semibold block mx-auto underline">
-              Resend OTP
-            </button>
-          )}
+    <div className="p-6 flex flex-col items-center min-h-full">
+      <div className="mt-6"><BigGear size={64} spin rev /></div>
+      <Logo size={30} />
+      <h2 className="font-serif-d text-[22px] font-bold text-[#2c1810] mt-6">Welcome back</h2>
+      <div className="w-full space-y-3 mt-4">
+        <div className="input-pill flex items-center gap-2"><span>✉️</span>
+          <input className="flex-1 bg-transparent outline-none" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
         </div>
-      )}
-
-      <button className="mt-auto text-[11px] text-[#4a7c59] underline">Forgot Login Credentials?</button>
-
-      <div className="mt-3 pt-2 text-[12px] text-[#2c1810]">
-        New to DoneHo?{" "}
-        <button onClick={onSignup} className="italic text-[#2d4a1e] font-bold underline">Sign up</button>
+        <div className="input-pill flex items-center gap-2"><span>🔒</span>
+          <input type="password" className="flex-1 bg-transparent outline-none" placeholder="Password" value={pw} onChange={(e) => setPw(e.target.value)} />
+        </div>
       </div>
+      <button onClick={submit} className="btn-copper w-full mt-4 py-3 text-sm">Log in</button>
+      <button onClick={onSignup} className="mt-3 text-[12px] text-[#2c1810] underline">New here? Create an account</button>
     </div>
   );
 }
 
-// ============ SCREEN 3 PROFILE ============
-const FALLBACK_CITIES = [
-  "New York, United States", "London, United Kingdom", "Tokyo, Japan", "Paris, France", 
-  "Singapore, Singapore", "Dubai, United Arab Emirates", "Sydney, Australia", "Mumbai, India", 
-  "Toronto, Canada", "Berlin, Germany", "Hong Kong, China", "Seoul, South Korea",
-  "Los Angeles, United States", "Chicago, United States", "Rome, Italy", "Madrid, Spain",
-  "Amsterdam, Netherlands", "São Paulo, Brazil", "Istanbul, Turkey", "Delhi, India"
-];
-
-const PROFESSIONS = [
-  "Accountant", "Actor", "Architect", "Artist", "Astronomer",
-  "Banker", "Biologist", "Business Analyst", "Chef", "Civil Engineer",
-  "Coach", "Consultant", "Content Creator", "Copywriter", "Data Analyst",
-  "Data Scientist", "Dentist", "Designer", "Doctor", "Driver",
-  "Economist", "Electrician", "Entrepreneur", "Event Planner", "Fashion Designer",
-  "Financial Analyst", "Freelancer", "Graphic Designer", "HR Professional", "Homemaker",
-  "Journalist", "Judge", "Lawyer", "Lecturer", "Librarian",
-  "Manager", "Marketing Professional", "Mechanical Engineer", "Nurse", "Nutritionist",
-  "Pharmacist", "Photographer", "Physiotherapist", "Pilot", "Plumber",
-  "Police Officer", "Product Manager", "Professor", "Psychologist", "Real Estate Agent",
-  "Researcher", "Retired", "Sales Executive", "Social Worker", "Software Engineer",
-  "Student", "Surgeon", "Teacher", "UX Designer", "Veterinarian",
-  "Web Developer", "Writer", "Yoga Instructor"
-];
-
-function Screen3({ onContinue, onSkip }: { onContinue: (n: string, loc: string) => void; onSkip: () => void }) {
-  const [name, setName] = useState("");
-  const [age, setAge] = useState("");
-  const [gender, setGender] = useState("");
-  const [loc, setLoc] = useState("");
-  const [prof, setProf] = useState("");
-  const [locFocused, setLocFocused] = useState(false);
-  const [profFocused, setProfFocused] = useState(false);
-  const [locMatches, setLocMatches] = useState<string[]>([]);
-  const [locLoading, setLocLoading] = useState(false);
-
-  useEffect(() => {
-    if (!loc || loc.length < 2) {
-      setLocMatches([]);
-      setLocLoading(false);
-      return;
-    }
-    setLocLoading(true);
-    const timer = setTimeout(async () => {
-      try {
-        const response = await fetch(
-          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(loc)}&format=json&addressdetails=1&limit=6&featuretype=city`,
-          { headers: { 'Accept-Language': 'en' } }
-        );
-        if (!response.ok) throw new Error("Fetch failed");
-        const data = await response.json();
-        const results = data.map((place: any) => {
-          const city = place.address?.city || place.address?.town || place.address?.village || place.name;
-          const country = place.address?.country;
-          if (!city || !country) return null;
-          return `${city}, ${country}`;
-        }).filter(Boolean);
-        
-        // Remove duplicates
-        const uniqueResults = Array.from(new Set(results)) as string[];
-        setLocMatches(uniqueResults);
-      } catch (err) {
-        // Fallback to static list
-        const lower = loc.toLowerCase();
-        setLocMatches(FALLBACK_CITIES.filter(c => c.toLowerCase().includes(lower)).slice(0, 6));
-      } finally {
-        setLocLoading(false);
-      }
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [loc]);
-
-  const profMatches = useMemo(() => {
-    if (!prof || prof.length < 1) return [];
-    const lower = prof.toLowerCase();
-    return PROFESSIONS
-      .filter(p => p.toLowerCase().includes(lower))
-      .sort((a, b) => {
-        const aStarts = a.toLowerCase().startsWith(lower);
-        const bStarts = b.toLowerCase().startsWith(lower);
-        if (aStarts && !bStarts) return -1;
-        if (!aStarts && bStarts) return 1;
-        return a.localeCompare(b);
-      })
-      .slice(0, 6);
-  }, [prof]);
+// ============ SCREEN 3 — CONVERSATIONAL ONBOARDING ============
+// Single chat question: name + profession. Nothing else asked at this stage.
+function Screen3Chat({ seedName, onDone }: { seedName?: string; onDone: (name: string, prof: string) => void }) {
+  const [input, setInput] = useState("");
+  const [thinking, setThinking] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => { inputRef.current?.focus(); }, []);
 
   const submit = () => {
-    if (!name.trim()) return toast.error("Name is required");
-    if (age && (Number(age) < 10 || Number(age) > 100)) return toast.error("Age must be 10-100");
-    if (loc && locMatches.length === 0 && loc.length < 3) return toast.error("Please enter a valid city or location");
-    if (prof && profMatches.length === 0 && prof.length < 3) return toast.error("Please enter a valid profession");
-    onContinue(name.trim(), loc.trim());
+    const raw = input.trim();
+    if (!raw) return toast.error("Say a little — your name and what you do");
+    // Very light parse: split on common separators. Placeholder — the real backend can parse better later.
+    const cleaned = raw.replace(/^(hi|hello|hey|i'?m|i am|my name is|call me)\s+/i, "");
+    let name = seedName || "";
+    let prof = "";
+    if (/,| and | & |\.|—|-/.test(cleaned)) {
+      const parts = cleaned.split(/,| and | & |\.|—| - /i).map(s => s.trim()).filter(Boolean);
+      name = parts[0] || name;
+      prof = parts.slice(1).join(", ");
+    } else {
+      // Fall back: first word = name, rest = profession
+      const parts = cleaned.split(/\s+/);
+      name = parts[0] || name;
+      prof = parts.slice(1).join(" ");
+    }
+    if (!name) name = "Friend";
+    if (!prof) prof = "—";
+    setThinking(true);
+    setTimeout(() => onDone(name.replace(/[^a-zA-Z\- ]/g, "").trim() || "Friend", prof.trim()), 700);
   };
 
   return (
     <div className="p-5 flex flex-col min-h-full">
-      <Logo size={32} />
-      <h2 className="font-serif-d text-[24px] font-bold text-[#2c1810] mt-3 leading-tight">Let's Get to Know You</h2>
-      <p className="text-[11px] text-[#5a3a20] mt-1">A few more details to create your personalized time map</p>
-
-      <div className="space-y-3 mt-4 flex-1">
-        <div className="input-pill flex items-center gap-2">
-          <span>👤</span>
-          <input className="flex-1 bg-transparent outline-none" placeholder="Name (Required)" value={name} onChange={(e) => setName(e.target.value)} />
-        </div>
-        <div className="input-pill flex items-center gap-2">
-          <span>📅</span>
-          <input className="flex-1 bg-transparent outline-none" placeholder="Age" inputMode="numeric"
-            value={age} onChange={(e) => setAge(e.target.value.replace(/\D/g, "").slice(0, 3))} />
-        </div>
-        <div className="input-pill flex items-center gap-2">
-          <span>⚧</span>
-          <select className="flex-1 bg-transparent outline-none" value={gender} onChange={(e) => setGender(e.target.value)}>
-            <option value="">Gender</option>
-            <option>Male</option><option>Female</option><option>Non-binary</option><option>Prefer not to say</option>
-          </select>
-        </div>
-
-        <div className="relative">
-          <div className="input-pill flex items-center gap-2">
-            <span>📍</span>
-            <input className="flex-1 bg-transparent outline-none" placeholder="Location (eg; City)" value={loc}
-              onChange={(e) => setLoc(e.target.value)}
-              onFocus={() => setLocFocused(true)} onBlur={() => setTimeout(() => setLocFocused(false), 150)} />
-            {locLoading && <div className="w-3 h-3 border-2 border-[#b87333] border-t-transparent rounded-full animate-spin" />}
-          </div>
-          {locFocused && loc.length > 0 && (
-            <div className="absolute z-20 w-full mt-1 bg-[#e8d5a3] border-2 border-[#b87333] rounded-2xl shadow-xl overflow-hidden">
-              {locMatches.length > 0 ? locMatches.map(c => (
-                <div key={c} onMouseDown={(e) => { e.preventDefault(); setLoc(c); setLocFocused(false); }} className="px-4 py-2 text-[13px] text-[#2c1810] hover:bg-[#b87333] hover:text-white cursor-pointer border-b border-[#b87333]/20 last:border-0">{c}</div>
-              )) : (
-                <div className="px-4 py-2 text-[11px] text-[#8a5424] italic">{locLoading ? "Searching..." : "No matching location found. Try another city name."}</div>
-              )}
-            </div>
-          )}
-        </div>
-
-        <div className="relative">
-          <div className="input-pill flex items-center gap-2">
-            <span>💼</span>
-            <input className="flex-1 bg-transparent outline-none" placeholder="Profession" value={prof}
-              onChange={(e) => setProf(e.target.value)}
-              onFocus={() => setProfFocused(true)} onBlur={() => setTimeout(() => setProfFocused(false), 150)} />
-          </div>
-          {profFocused && prof.length > 0 && (
-            <div className="absolute z-20 w-full mt-1 bg-[#e8d5a3] border-2 border-[#b87333] rounded-2xl shadow-xl overflow-hidden">
-              {profMatches.length > 0 ? profMatches.map(p => (
-                <div key={p} onMouseDown={(e) => { e.preventDefault(); setProf(p); setProfFocused(false); }} className="px-4 py-2 text-[13px] text-[#2c1810] hover:bg-[#b87333] hover:text-white cursor-pointer border-b border-[#b87333]/20 last:border-0">{p}</div>
-              )) : (
-                <div className="px-4 py-2 text-[11px] text-[#8a5424] italic">Please enter a valid profession</div>
-              )}
-            </div>
-          )}
+      <Logo size={30} />
+      <div className="mt-6 flex items-start gap-2 fade-in">
+        <Aether size={42} />
+        <div className="bg-[#e8d5a3] border-2 border-[#b87333] rounded-2xl rounded-tl-sm p-3 text-[13px] text-[#2c1810] leading-snug">
+          Hi! I'm Aether.
+          <br />
+          <span className="font-bold">What should I call you, and what do you do for work?</span>
         </div>
       </div>
 
-      <button onClick={submit} className="btn-olive w-full mt-4 py-3 flex items-center justify-center gap-2 text-sm">
-        <span>⚙️</span> Continue to your day
-      </button>
-      <button onClick={onSkip} className="mt-2 text-[12px] text-[#2c1810] underline mx-auto">Skip for now</button>
+      <div className="mt-4 text-[10px] italic text-[#5a3a20] pl-14">One line is plenty — e.g. "Thasli, product manager"</div>
 
-      <div className="mt-3 pt-2">
-        <ProgressBar pct={25} label="Profile completion" />
+      <div className="mt-auto pb-2">
+        <div className="input-pill flex items-center gap-2">
+          <input
+            ref={inputRef}
+            className="flex-1 bg-transparent outline-none text-sm"
+            placeholder="Type your answer…"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && submit()}
+          />
+        </div>
+        <button onClick={submit} disabled={thinking}
+          className={`btn-copper w-full mt-3 py-3 text-sm ${thinking ? "opacity-70" : ""}`}>
+          {thinking ? "Aether is listening…" : "Send →"}
+        </button>
+        <div className="mt-3 pt-1"><ProgressBar pct={25} label="Onboarding" /></div>
       </div>
     </div>
   );
@@ -724,7 +517,6 @@ function Screen4({ username, allGoals, setAllGoals, selectedGoals, setSelectedGo
   const [adding, setAdding] = useState(false);
   const [newGoal, setNewGoal] = useState("");
   const [chatOpen, setChatOpen] = useState(false);
-  const [chatStartMic, setChatStartMic] = useState(false);
 
   const toggle = (g: string) => {
     setSelectedGoals(selectedGoals.includes(g) ? selectedGoals.filter((x: string) => x !== g) : [...selectedGoals, g]);
@@ -736,7 +528,7 @@ function Screen4({ username, allGoals, setAllGoals, selectedGoals, setSelectedGo
     setNewGoal(""); setAdding(false);
   };
   const generate = () => {
-    if (selectedGoals.length === 0) return toast.error("Please select at least one goal");
+    if (selectedGoals.length === 0) return toast.error("Pick at least one goal");
     onGenerate();
   };
 
@@ -747,18 +539,17 @@ function Screen4({ username, allGoals, setAllGoals, selectedGoals, setSelectedGo
         <div className="flex-1 ml-2">
           <AetherProactiveInsight
             screenName="Goal Selection"
-            userData={{ username, selectedGoals, hasLeisure: selectedGoals.includes('Entertainment and Leisure'), timeOfDay: new Date().getHours(), location: userProfile.location }}
+            userData={{ username, selectedGoals, timeOfDay: new Date().getHours(), location: userProfile?.location }}
             cache={aetherInsights}
             setCache={setAetherInsights}
           />
         </div>
       </div>
       <h2 className="font-serif-d text-[22px] font-bold text-[#2c1810] mt-2">Welcome {username}</h2>
-      <p className="text-[11px] text-[#5a3a20]">Select your focus. Aether engineers the rest</p>
+      <p className="text-[11px] text-[#5a3a20]">Pick the areas that matter. Aether shapes the rest.</p>
 
       <div className="flex items-center gap-2 mt-2">
-        <button onClick={() => { setChatStartMic(false); setChatOpen(true); }} className="btn-olive px-3 py-1 text-[11px]">Ask me ∞</button>
-        <button onClick={() => { setChatStartMic(true); setChatOpen(true); }} className="btn-copper px-2 py-1 text-[11px]">🎤</button>
+        <button onClick={() => setChatOpen(true)} className="btn-olive px-3 py-1 text-[11px]">Ask Aether</button>
       </div>
 
       <div className="mt-3 flex-1 overflow-y-auto thin-scroll space-y-2 pr-1" style={{ maxHeight: 380 }}>
@@ -782,7 +573,7 @@ function Screen4({ username, allGoals, setAllGoals, selectedGoals, setSelectedGo
         })}
         {adding && (
           <div className="flex gap-2">
-            <input className="input-pill flex-1" placeholder="eg; Learn French, Yoga" value={newGoal}
+            <input className="input-pill flex-1" placeholder="e.g. Learn French" value={newGoal}
               onChange={(e) => setNewGoal(e.target.value)} />
             <button onClick={addGoal} className="btn-copper px-3 text-xs">Add</button>
           </div>
@@ -791,88 +582,32 @@ function Screen4({ username, allGoals, setAllGoals, selectedGoals, setSelectedGo
 
       <div className="mt-3 space-y-2">
         <button onClick={generate} className="btn-olive w-full py-2.5 flex items-center justify-center gap-2 text-[13px]">
-          <span>⚙️</span> Generate Resilient Blueprint
+          <span>⚙️</span> Continue
         </button>
         <div className="flex items-center justify-between text-[11px] text-[#2c1810]">
           <span>Don't see your goal?</span>
-          <div className="flex items-center gap-2">
-            <button onClick={() => setAdding(true)} className="btn-olive px-3 py-1 text-[10px]">+ Add goal</button>
-            <button onClick={generate} className="underline">Skip</button>
-          </div>
+          <button onClick={() => setAdding(true)} className="btn-olive px-3 py-1 text-[10px]">+ Add goal</button>
         </div>
-        <ProgressBar pct={60} label="Profile completion" />
+        <ProgressBar pct={45} label="Onboarding" />
       </div>
 
-      {chatOpen && <AetherChat username={username} onClose={() => setChatOpen(false)} startWithMic={chatStartMic} />}
+      {chatOpen && <AetherChat username={username} onClose={() => setChatOpen(false)} />}
     </div>
   );
 }
 
-// ============ AETHER KNOWLEDGE ============
-const AETHER_KNOWLEDGE: { match: RegExp; text: string }[] = [
-  { match: /(what is doneho|how does doneho work|about doneho)/i, text: "DoneHo is your empathetic day planner, [username]! I'm Aether, your resilience engine. Together we build a blueprint of your week based on your real life — goals, energy, and unexpected moments included." },
-  { match: /resilience\s*score|my score/i, text: "Your Resilience Score starts at 70 and only goes up, [username]! It measures how well you adapt when life interrupts. Complete tasks, use reserve hours, or vault tasks to Saturday — each action earns points. Tiers: Thriving (90-100), Resilient (70-89), Recovering (50-69), Rebuilding (below 50)." },
-  { match: /reserve\s*hour|safety net/i, text: "Reserve hours are your hidden safety net, [username]. I quietly keep 1 hour/day (7 hrs/week) in reserve. When you miss tasks and tap 'Life Happened', I use these reserve hours to heal your day — no guilt, no punishment!" },
-  { match: /vault|saturday/i, text: "The Vault is your Saturday safety net, [username]! When reserve hours run out and tasks are still missed, I move them safely to your Saturday Vault. Open it on weekends to catch up stress-free." },
-  { match: /life\s*load/i, text: "Life Load is your weekly stress meter, [username]. It combines how unpredictable (Volatility) and mentally demanding (Traffic) your goals are. Too high and your engine overheats — I'll warn you before that happens!" },
-  { match: /volatility|unpredictab/i, text: "Volatility measures how unpredictable a goal is, [username]. Childcare can change every hour — high volatility. Your gym workout happens on your own terms — low volatility. Honest input helps me protect you better!" },
-  { match: /traffic|mental energy|focus level/i, text: "Traffic means mental energy needed, [username]. Career planning needs 100% of your brain — high traffic. Entertainment needs almost none — low traffic. It's not about time, it's about focus!" },
-  { match: /blueprint/i, text: "Your Blueprint is your personalized week plan, [username]! I calculate exactly how many minutes each task needs based on your hours, goals, and life load. It's always fair and always adjustable." },
-  { match: /who are you|what are you|aether/i, text: "I'm Aether — your steampunk resilience companion, [username]! I live inside DoneHo to make sure your week never falls apart completely. Think of me as the engineer keeping your life's gears turning smoothly." },
-  { match: /how (to|do i) use|getting started|how to start|guide me/i, text: "Here's your journey, [username]: Set up your profile → Pick your life goals → Calibrate your energy levels → Allot your daily hours → Get your Blueprint → Check in daily on Day Output. I'll guide you every step!" },
-  { match: /goal|select goal|which goal/i, text: "Choose goals that matter to YOU right now, [username]. You can select multiple — I'll balance them. If life gets too intense (Life Load above 8.5), I'll ask you to reduce intensity, not give up goals entirely." },
-];
-
-// ============ AETHER CHAT POPUP ============
-function AetherChat({ username, onClose, startWithMic = false }: {
-  username: string; onClose: () => void; startWithMic?: boolean;
-}) {
+// ============ AETHER CHAT POPUP (used everywhere) ============
+function AetherChat({ username, onClose }: { username: string; onClose: () => void }) {
   const [msgs, setMsgs] = useState<{ role: "user" | "assistant"; content: string }[]>([
-    { role: "assistant", content: `Hi ${username}! I'm Aether, your resilience companion ⚙️ Ask me anything about DoneHo — what terms mean, how to navigate, or how your Blueprint works. I'm here to keep your gears turning smoothly!` }
+    { role: "assistant", content: `Hi ${username || "friend"} — ask me about DoneHo, your plan, or anything unclear. Short answers only ⚙️` }
   ]);
   const [input, setInput] = useState("");
-  const [recording, setRecording] = useState(false);
   const [typing, setTyping] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const recogRef = useRef<any>(null);
   const endRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    inputRef.current?.focus();
-    if (startWithMic) setTimeout(() => toggleMic(), 200);
-    return () => { try { recogRef.current?.stop(); } catch {} };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [msgs, typing]);
-
-  const toggleMic = () => {
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SR) { toast.error("Voice input not supported on this browser. Please type your question."); return; }
-    if (recording) { try { recogRef.current?.stop(); } catch {} setRecording(false); return; }
-    const rec = new SR();
-    rec.continuous = false;
-    rec.interimResults = false;
-    rec.lang = "en-US";
-    rec.onstart = () => setRecording(true);
-    rec.onresult = (e: any) => {
-      const t = e.results[0][0].transcript;
-      setInput((prev) => prev ? prev + " " + t : t);
-    };
-    rec.onerror = (e: any) => {
-      if (e.error === "not-allowed" || e.error === "service-not-allowed") {
-        toast.error("Microphone access needed. Please allow in browser settings.");
-      }
-      setRecording(false);
-    };
-    rec.onend = () => setRecording(false);
-    recogRef.current = rec;
-    try { rec.start(); } catch { setRecording(false); }
-  };
-
   const fetchChat = useServerFn(chatWithAether);
+  useEffect(() => { inputRef.current?.focus(); }, []);
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs, typing]);
 
   const send = async () => {
     if (!input.trim() || typing) return;
@@ -881,16 +616,12 @@ function AetherChat({ username, onClose, startWithMic = false }: {
     setMsgs(newHistory);
     setInput("");
     setTyping(true);
-
     try {
       const responseText = await fetchChat({ data: { username, messages: newHistory } });
       setMsgs([...newHistory, { role: "assistant", content: responseText }]);
-    } catch (e) {
-      // Fallback if API fails
-      setMsgs([...newHistory, { role: "assistant", content: `My signal got disrupted! Try again — I'm still here ⚙️` }]);
-    } finally {
-      setTyping(false);
-    }
+    } catch {
+      setMsgs([...newHistory, { role: "assistant", content: "My signal got disrupted — try again ⚙️" }]);
+    } finally { setTyping(false); }
   };
 
   return (
@@ -898,11 +629,11 @@ function AetherChat({ username, onClose, startWithMic = false }: {
       <div onClick={(e) => e.stopPropagation()}
         className="w-full bg-[#c8b89a] rounded-t-3xl border-t-4 border-[#b87333] shadow-2xl flex flex-col"
         style={{ height: "70%" }}>
-        <div className="flex items-center justify-between p-3 border-b border-[#b87333]/30 bg-[#c8b89a] rounded-t-3xl">
+        <div className="flex items-center justify-between p-3 border-b border-[#b87333]/30 rounded-t-3xl">
           <div className="flex items-center gap-2"><Aether size={32} /><span className="font-bold text-[#2c1810]">Aether</span></div>
           <button onClick={onClose} className="text-[#2c1810] text-lg font-bold w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#b87333]/20">✕</button>
         </div>
-        <div className="flex-1 overflow-y-auto thin-scroll p-3 space-y-2 bg-[#c8b89a]">
+        <div className="flex-1 overflow-y-auto thin-scroll p-3 space-y-2">
           {msgs.map((m, i) => (
             <div key={i} className={`text-[13px] p-3 rounded-xl max-w-[85%] leading-snug ${m.role === "assistant"
               ? "bg-[#e8d5a3] text-[#2c1810] mr-auto border border-[#b87333]"
@@ -915,15 +646,11 @@ function AetherChat({ username, onClose, startWithMic = false }: {
               <span className="w-1.5 h-1.5 bg-[#b87333] rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
             </div>
           )}
-          {recording && <div className="text-[11px] text-red-600 font-bold flex items-center gap-1"><span className="w-2 h-2 bg-red-600 rounded-full animate-pulse" />Listening...</div>}
           <div ref={endRef} />
         </div>
-        <div className="flex gap-2 p-3 border-t border-[#b87333]/30 bg-[#c8b89a]">
-          <div className="flex-1 relative">
-            <input ref={inputRef} className="input-pill w-full pr-10" placeholder="Ask Aether..." value={input}
-              onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && send()} />
-            <button onClick={toggleMic} className={`absolute right-3 top-1/2 -translate-y-1/2 text-base ${recording ? "text-red-600 animate-pulse" : "text-[#8a5424]"}`}>🎤</button>
-          </div>
+        <div className="flex gap-2 p-3 border-t border-[#b87333]/30">
+          <input ref={inputRef} className="input-pill flex-1" placeholder="Ask Aether…" value={input}
+            onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && send()} />
           <button onClick={send} disabled={typing} className={`btn-copper px-4 text-xs ${typing ? 'opacity-50' : ''}`}>➤</button>
         </div>
       </div>
@@ -931,47 +658,27 @@ function AetherChat({ username, onClose, startWithMic = false }: {
   );
 }
 
-// ============ SCREEN 5 PRIORITY BLUEPRINT ============
-function computeLifeLoad(selected: string[], sliders: Record<string, GoalSliders>): number {
-  if (selected.length === 0) return 0;
-  let sum = 0;
-  selected.forEach((g) => {
-    const s = sliders[g] ?? { volatility: 5, traffic: 5 };
-    const raw = (s.volatility + s.traffic) / 2;
-    const mult = GOAL_MULTIPLIERS[g] ?? 1.0;
-    sum += raw * mult;
-  });
-  return Math.max(0, sum / selected.length);
-}
-
+// ============ SCREEN 5 — PRIORITY BLUEPRINT ============
 function Screen5({ username, selectedGoals, goalSliders, setGoalSliders, onActivate, onModify, userProfile, aetherInsights, setAetherInsights }: any) {
   const [chatOpen, setChatOpen] = useState(false);
-  const [chatStartMic, setChatStartMic] = useState(false);
   const lifeLoad = useMemo(() => computeLifeLoad(selectedGoals, goalSliders), [selectedGoals, goalSliders]);
 
   const updateSlider = (g: string, key: keyof GoalSliders, val: number) => {
-    setGoalSliders({ ...goalSliders, [g]: { ...goalSliders[g], [key]: val } });
+    setGoalSliders({ ...goalSliders, [g]: { ...(goalSliders[g] ?? { volatility: 5, traffic: 5 }), [key]: val } });
   };
 
+  // Commit gating: strictly disabled above 65
+  const blocked = lifeLoad > 65;
+  const noLeisure = selectedGoals.length > 0 && !selectedGoals.some((g: string) => LEISURE_GOALS.has(g));
+
+  const zoneColor = lifeLoad < 30 ? "#4a7c59" : lifeLoad < 50 ? "#a3c54a" : lifeLoad <= 65 ? "#d4a843" : "#c44b3e";
+  const needleAngle = -90 + Math.min(180, (lifeLoad / 100) * 180);
+
   const aetherMsg =
-    lifeLoad <= 3 ? "Great balance! Your engine is ready." :
-    lifeLoad <= 5 ? "Good load. Manageable week ahead." :
-    lifeLoad <= 7 ? "Moderate load. Watch your energy levels." :
-    lifeLoad <= 8 ? "This looks challenging. Don't worry — allot your time wisely, I will assist you." :
-    lifeLoad <= 8.5 ? "Heavy load detected. Consider reducing one goal's intensity." :
-    `This load is beyond what I can protect ${username}. Please reduce at least one goal.`;
-
-  const blocked = lifeLoad > 8.5;
-  const needleAngle = -90 + Math.min(180, (lifeLoad / 10) * 180);
-  const meterColor = lifeLoad <= 3 ? "#4a7c59" : lifeLoad <= 5 ? "#a3c54a" : lifeLoad <= 7 ? "#d4a843" : lifeLoad <= 8 ? "#d4843a" : "#c44b3e";
-
-  // cross-goal warnings
-  const warns: string[] = [];
-  const cs = goalSliders["Child/Elderly Care"], cr = goalSliders["Career Planning"];
-  if (cs?.volatility > 8 && cr?.traffic > 7) warns.push("When childcare gets intense I'll shift career to passive mode.");
-  const st = goalSliders["Study and Learning"];
-  if (st?.traffic > 7 && cr?.traffic > 7) warns.push("Two high-focus goals! I'll separate with recovery buffers.");
-  if (selectedGoals.length >= 2 && !selectedGoals.includes("Entertainment and Leisure")) warns.push("No leisure planned. Consider adding a recovery goal.");
+    lifeLoad < 30 ? "Light week. Room to breathe." :
+    lifeLoad < 50 ? "Nicely balanced." :
+    lifeLoad <= 65 ? "Getting intense. Still safe to commit." :
+    `Too heavy ${username}. Ease one goal down before committing.`;
 
   return (
     <div className="p-4 flex flex-col min-h-full relative">
@@ -980,16 +687,14 @@ function Screen5({ username, selectedGoals, goalSliders, setGoalSliders, onActiv
 
       <AetherProactiveInsight
         screenName="Priority Blueprint"
-        userData={{ username, selectedGoals, lifeLoadScore: lifeLoad, goalSliders, hasLeisure: selectedGoals.includes('Entertainment and Leisure'), location: userProfile?.location, timeOfDay: new Date().getHours() }}
+        userData={{ username, selectedGoals, lifeLoadScore: lifeLoad, goalSliders, hasLeisure: !noLeisure, location: userProfile?.location }}
         cache={aetherInsights}
         setCache={setAetherInsights}
       />
       <div className="flex gap-1 mt-1">
-        <button onClick={() => { setChatStartMic(false); setChatOpen(true); }} className="btn-olive px-2 py-0.5 text-[10px] glow-pulse">Ask me</button>
-        <button onClick={() => { setChatStartMic(true); setChatOpen(true); }} className="btn-copper px-1.5 py-0.5 text-[10px]">🎤</button>
+        <button onClick={() => setChatOpen(true)} className="btn-olive px-2 py-0.5 text-[10px]">Ask Aether</button>
       </div>
 
-      {/* Meter */}
       <div className="mt-2 flex flex-col items-center">
         <svg width="200" height="110" viewBox="0 0 200 110">
           <defs>
@@ -1002,27 +707,22 @@ function Screen5({ username, selectedGoals, goalSliders, setGoalSliders, onActiv
           <path d="M 20 100 A 80 80 0 0 1 180 100" stroke="url(#meterG)" strokeWidth="14" fill="none" strokeLinecap="round" />
           <line x1="100" y1="100" x2="100" y2="35" stroke="#2c1810" strokeWidth="3" strokeLinecap="round"
             transform={`rotate(${needleAngle} 100 100)`} style={{ transition: "transform 0.3s" }} />
-          <circle cx="100" cy="100" r="6" fill={meterColor} stroke="#6b3f1a" strokeWidth="2" />
+          <circle cx="100" cy="100" r="6" fill={zoneColor} stroke="#6b3f1a" strokeWidth="2" />
         </svg>
-        <div className="text-[12px] font-bold text-[#2c1810] -mt-2">Life Load: {lifeLoad.toFixed(1)}</div>
+        <div className="text-[12px] font-bold text-[#2c1810] -mt-2">LifeLoad: {lifeLoad.toFixed(1)}</div>
         <div className="flex justify-between w-[200px] text-[10px] text-[#5a3a20]"><span>Light</span><span>Intense</span></div>
         <div className="text-[10px] italic text-[#2c1810] mt-1 text-center px-2">{aetherMsg}</div>
       </div>
 
-      {warns.length > 0 && (
-        <div className="mt-1 text-[9px] text-[#c44b3e] space-y-0.5">
-          {warns.map((w, i) => <div key={i}>⚠️ {w}</div>)}
-        </div>
+      {noLeisure && (
+        <div className="mt-1 text-[10px] text-[#c44b3e]">⚠️ No leisure planned this week — burnout risk.</div>
       )}
 
-      {/* Goal cards grid */}
       <div className="grid grid-cols-2 gap-2 mt-2 overflow-y-auto thin-scroll flex-1 pr-1" style={{ maxHeight: 280 }}>
         {selectedGoals.map((g: string) => {
           const s = goalSliders[g] ?? { volatility: 5, traffic: 5 };
-          const both = s.volatility > 7 && s.traffic > 7;
           return (
             <div key={g} className="dark-card text-[10px] relative">
-              {both && <span className="absolute -top-1 -right-1 text-sm">⚠️</span>}
               <div className="font-bold text-[11px] mb-1">{GOAL_ICONS[g] ?? "✨"} {g}</div>
               <div>Volatility: {s.volatility}</div>
               <input type="range" min={0} max={10} value={s.volatility}
@@ -1036,32 +736,38 @@ function Screen5({ username, selectedGoals, goalSliders, setGoalSliders, onActiv
       </div>
 
       <div className="mt-2 space-y-1.5">
-        <button disabled={blocked} onClick={onActivate}
-          className="btn-copper w-full py-2.5 text-[13px]">Activate Priority Blueprint</button>
+        <button
+          disabled={blocked}
+          onClick={onActivate}
+          className={`btn-copper w-full py-2.5 text-[13px] ${blocked ? "opacity-50 cursor-not-allowed" : ""}`}>
+          {blocked ? "Reduce LifeLoad below 65 to commit" : "Activate Priority Blueprint"}
+        </button>
         <button onClick={onModify} className="w-full py-1.5 rounded-full border-2 border-[#b87333] text-[#2c1810] bg-[#e8d5a3] text-xs font-semibold">
           Modify goals
         </button>
-        <div className="text-[9px] italic text-[#2c1810] text-center">Initialization complete; Planning path validated</div>
       </div>
 
-      {chatOpen && <AetherChat username={username} onClose={() => setChatOpen(false)} startWithMic={chatStartMic} />}
+      {chatOpen && <AetherChat username={username} onClose={() => setChatOpen(false)} />}
     </div>
   );
 }
 
-// ============ SCREEN 6 AETHERIZATION ============
+// ============ SCREEN 6 — AETHERIZATION (hours + tasks) ============
 function Screen6({ username, selectedGoals, goalSliders, totalHoursPerDay, setTotalHoursPerDay,
-  tasksPerGoal, setTasksPerGoal, reservePool, onAetherize, aetherInsights, setAetherInsights }: any) {
+  tasksPerGoal, setTasksPerGoal, onAetherize, aetherInsights, setAetherInsights }: any) {
   const [chatOpen, setChatOpen] = useState(false);
-  const [chatStartMic, setChatStartMic] = useState(false);
   const lifeLoad = computeLifeLoad(selectedGoals, goalSliders);
-  const blocked = lifeLoad > 8;
 
-  const hourSuggestion =
-    lifeLoad <= 3 ? "3-4 hours — Light week! Even 3 focused hours moves goals forward." :
-    lifeLoad <= 5 ? "4-5 hours — Balanced. Keeps you productive without burnout." :
-    lifeLoad <= 7 ? "5-6 hours — Moderate load. Your sweet spot." :
-    "6-7 hours — Challenging. Don't worry — allot wisely.";
+  // Recommended range (placeholder — will come from backend Commitment Contract)
+  const REC_MIN = 4;
+  const REC_MAX = 6;
+  const REC_DEFAULT = 5;
+
+  useEffect(() => {
+    // Ensure hours land inside recommended band
+    if (totalHoursPerDay < REC_MIN || totalHoursPerDay > REC_MAX) setTotalHoursPerDay(REC_DEFAULT);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const orderedGoals = [...selectedGoals].sort((a: string, b: string) => {
     const sa = (goalSliders[a]?.traffic ?? 0) + (goalSliders[a]?.volatility ?? 0);
@@ -1085,70 +791,63 @@ function Screen6({ username, selectedGoals, goalSliders, totalHoursPerDay, setTo
   const pct = orderedGoals.length === 0 ? 0 : Math.round((filledCards / orderedGoals.length) * 100);
 
   const aetherMsg =
-    pct === 0 ? `Let's start ${username}. Add tasks — I'll handle blueprinting.` :
-    pct < 50 ? "Good start! Every task helps me protect your goals." :
-    pct < 75 ? "Halfway! Your blueprint is taking shape." :
-    pct < 100 ? "Almost done! Just a few more tasks." :
-    `Blueprint complete ${username}! Tap Aether-ize — let's begin.`;
+    pct === 0 ? `Let's start ${username}. Add a couple of tasks per goal.` :
+    pct < 50 ? "Nice — every task helps me protect your week." :
+    pct < 100 ? "Almost there. A couple more and I can Aetherize." :
+    `Ready ${username}! Tap Aetherize.`;
 
-  if (blocked) {
-    return (
-      <div className="p-5 flex flex-col items-center justify-center min-h-full">
-        <Logo size={32} />
-        <div className="mt-8 p-5 rounded-2xl bg-[#c44b3e] text-white text-center">
-          <div className="text-3xl">⚠️</div>
-          <h3 className="font-bold mt-2">Please reduce Life Load first</h3>
-          <p className="text-xs mt-2">Your Life Load is too high to plan a week safely.</p>
-        </div>
-      </div>
-    );
-  }
+  // Slider position → filled band styling
+  const bandPct = ((REC_MAX - REC_MIN) / (REC_MAX - REC_MIN)) * 100;
 
   return (
     <div className="p-4 flex flex-col min-h-full relative">
       <div className="flex items-center justify-between">
         <Logo size={26} />
-        <div className="flex gap-1">
-          <button onClick={() => { setChatStartMic(false); setChatOpen(true); }} className="btn-olive px-2 py-0.5 text-[10px]">Ask me</button>
-          <button onClick={() => { setChatStartMic(true); setChatOpen(true); }} className="btn-copper px-1.5 py-0.5 text-[10px]">🎤</button>
-        </div>
+        <button onClick={() => setChatOpen(true)} className="btn-olive px-2 py-0.5 text-[10px]">Ask Aether</button>
       </div>
-      <h2 className="font-serif-d text-[18px] font-bold text-[#2c1810] mt-2">Allot your hours for this week</h2>
+      <h2 className="font-serif-d text-[18px] font-bold text-[#2c1810] mt-2">Your hours this week</h2>
+      <p className="text-[10px] text-[#5a3a20]">Recommended: {REC_MIN}–{REC_MAX} hrs/day. I'll shape the plan around this.</p>
 
-      <div className="mt-2 flex items-center gap-2">
-        <div className="flex-1 bg-[#2d4a1e] rounded-full px-3 py-1.5 flex items-center gap-2">
-          <span className="text-[10px] text-[#e8d5b0]">Total hours/day</span>
-          <input
-            inputMode="numeric" value={totalHoursPerDay || ""}
-            onChange={(e) => setTotalHoursPerDay(Number(e.target.value.replace(/\D/g, "")) || 0)}
-            className="w-12 rounded-md text-center bg-[#e8d5a3] text-[#2c1810] font-bold text-xs"
-            placeholder="---"
-          />
+      {/* Constrained recommended-range slider */}
+      <div className="mt-2 bg-[#e8d5a3] border border-[#b87333] rounded-xl p-2">
+        <div className="flex items-center justify-between text-[10px] text-[#2c1810] font-semibold">
+          <span>Daily focus hours</span>
+          <span className="text-[12px] text-[#2d4a1e]">{totalHoursPerDay} hrs/day</span>
         </div>
-        <div className="text-right">
-          <div className="text-[18px] font-bold text-[#2d4a1e]">{pct}%</div>
-          <button disabled={pct < 100} onClick={onAetherize}
-            className={`btn-copper px-3 py-1 text-[10px] ${pct === 100 ? "glow-pulse" : ""}`}>Aether-ize</button>
+        <div className="relative mt-2 h-3 rounded-full bg-[#b87333]/25 overflow-hidden">
+          <div className="absolute top-0 h-3 bg-[#4a7c59]/50" style={{ left: "0%", width: `${bandPct}%` }} />
+          <div className="absolute top-0 h-3 bg-[#4a7c59]" style={{
+            left: `${((totalHoursPerDay - REC_MIN) / (REC_MAX - REC_MIN)) * 100}%`,
+            width: 4,
+          }} />
+        </div>
+        <input
+          type="range"
+          min={REC_MIN}
+          max={REC_MAX}
+          step={0.5}
+          value={totalHoursPerDay}
+          onChange={(e) => setTotalHoursPerDay(Number(e.target.value))}
+          className="steam-slider w-full mt-1"
+        />
+        <div className="flex justify-between text-[9px] text-[#5a3a20] mt-1">
+          <span>{REC_MIN} hr</span>
+          <span>Recommended range</span>
+          <span>{REC_MAX} hr</span>
         </div>
       </div>
-      <p className="text-[9px] italic text-[#5a3a20] mt-1">Recommended planning range: {hourSuggestion}</p>
-      {totalHoursPerDay > 0 && (
-        <p className="text-[9px] text-[#2d4a1e] mt-0.5">Planning capacity locked: {Math.max(0, totalHoursPerDay - 0.5)} hrs/day of focused work.</p>
-      )}
+
       <AetherProactiveInsight
         screenName="Aetherization"
-        userData={{ username, totalHoursPerDay, availableHours: Math.max(0, totalHoursPerDay - 0.5), lifeLoadScore: lifeLoad, tasksPerGoal, selectedGoals, reservePool }}
+        userData={{ username, totalHoursPerDay, lifeLoadScore: lifeLoad, tasksPerGoal, selectedGoals }}
         cache={aetherInsights}
         setCache={setAetherInsights}
       />
       <p className="text-[10px] text-[#2d4a1e] mt-1">{aetherMsg}</p>
 
-      <div className="flex-1 overflow-y-auto thin-scroll mt-2 space-y-2 pr-1" style={{ maxHeight: 480 }}>
+      <div className="flex-1 overflow-y-auto thin-scroll mt-2 space-y-2 pr-1" style={{ maxHeight: 400 }}>
         {orderedGoals.map((g: string) => {
-          const combined = (goalSliders[g]?.traffic ?? 0) + (goalSliders[g]?.volatility ?? 0);
-          const focus = combined >= 14 ? { label: "High focus", color: "#ec4899" } :
-            combined >= 8 ? { label: "Medium focus", color: "#06b6d4" } :
-              { label: "Low focus", color: "#d4843a" };
+          const focus = focusFor(goalSliders[g]);
           const tasks = tasksPerGoal[g] ?? ["", "", "", ""];
           return (
             <div key={g} className="dark-card">
@@ -1171,10 +870,88 @@ function Screen6({ username, selectedGoals, goalSliders, totalHoursPerDay, setTo
         })}
       </div>
 
-      <button onClick={() => { onAetherize(); toast.success("Hours locked! Aether is blueprinting your week."); }}
-        className="btn-copper w-full mt-2 py-2 text-[11px]">Lock in Hours</button>
+      <div className="mt-2 flex items-center gap-2">
+        <div className="text-[18px] font-bold text-[#2d4a1e]">{pct}%</div>
+        <button disabled={pct < 100} onClick={onAetherize}
+          className={`btn-copper flex-1 py-2 text-[12px] ${pct === 100 ? "glow-pulse" : "opacity-60"}`}>
+          Aetherize my week
+        </button>
+      </div>
 
-      {chatOpen && <AetherChat username={username} onClose={() => setChatOpen(false)} startWithMic={chatStartMic} />}
+      {chatOpen && <AetherChat username={username} onClose={() => setChatOpen(false)} />}
+    </div>
+  );
+}
+
+// ============ SCREEN 6.5 — GOAL CLARIFICATION ============
+function collectVagueTasks(selectedGoals: string[], tasksPerGoal: Record<string, string[]>) {
+  const vague: { goal: string; index: number; text: string }[] = [];
+  selectedGoals.forEach((g) => {
+    (tasksPerGoal[g] ?? []).forEach((t, i) => {
+      const clean = t.trim();
+      if (!clean) return;
+      if (clean.split(/\s+/).length < 3) vague.push({ goal: g, index: i, text: clean });
+    });
+  });
+  return vague;
+}
+
+function ScreenClarify({ username, selectedGoals, tasksPerGoal, setTasksPerGoal, onDone }: any) {
+  const vague = useMemo(() => collectVagueTasks(selectedGoals, tasksPerGoal), [selectedGoals, tasksPerGoal]);
+  const [idx, setIdx] = useState(0);
+  const [answer, setAnswer] = useState("");
+
+  useEffect(() => { if (vague.length === 0) onDone(); }, []); // eslint-disable-line
+
+  if (vague.length === 0) return null;
+  const current = vague[idx];
+  const clarifyQuestion = `For "${current.text}" — starting from scratch, or brushing up?`;
+
+  const submit = () => {
+    if (answer.trim()) {
+      // Append the user's answer to the task text to enrich it — placeholder logic
+      const arr = [...(tasksPerGoal[current.goal] ?? [])];
+      arr[current.index] = `${current.text} (${answer.trim()})`;
+      setTasksPerGoal({ ...tasksPerGoal, [current.goal]: arr });
+    }
+    setAnswer("");
+    if (idx + 1 >= vague.length) onDone();
+    else setIdx(idx + 1);
+  };
+
+  return (
+    <div className="p-4 flex flex-col min-h-full">
+      <Logo size={26} />
+      <h2 className="font-serif-d text-[18px] font-bold text-[#2c1810] mt-3">Quick check-in</h2>
+      <p className="text-[10px] text-[#5a3a20]">Aether wants to sharpen a couple of tasks before blueprinting.</p>
+
+      <div className="mt-4 flex items-start gap-2 fade-in" key={idx}>
+        <Aether size={38} />
+        <div className="bg-[#e8d5a3] border-2 border-[#b87333] rounded-2xl rounded-tl-sm p-3 text-[12px] text-[#2c1810]">
+          {clarifyQuestion}
+        </div>
+      </div>
+
+      <div className="mt-auto pb-2">
+        <div className="input-pill flex items-center gap-2">
+          <input
+            autoFocus
+            className="flex-1 bg-transparent outline-none text-sm"
+            placeholder="Short answer…"
+            value={answer}
+            onChange={(e) => setAnswer(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && submit()}
+          />
+        </div>
+        <div className="flex items-center gap-2 mt-3">
+          <button onClick={() => { setAnswer(""); if (idx + 1 >= vague.length) onDone(); else setIdx(idx + 1); }}
+            className="w-1/3 py-2 rounded-full border-2 border-[#b87333] text-[#2c1810] bg-[#e8d5a3] text-xs">
+            Skip
+          </button>
+          <button onClick={submit} className="btn-copper flex-1 py-2 text-sm">Next →</button>
+        </div>
+        <div className="text-center text-[9px] text-[#5a3a20] mt-2">Question {idx + 1} of {vague.length}</div>
+      </div>
     </div>
   );
 }
@@ -1183,30 +960,23 @@ function Screen6({ username, selectedGoals, goalSliders, totalHoursPerDay, setTo
 function Screen7({ username, onContinue }: { username: string; onContinue: () => void }) {
   const [showBtn, setShowBtn] = useState(false);
   const [typed, setTyped] = useState("");
-  const fullText = `Your blueprint is ready ${username}! I've synchronized all your goals, tasks and hours into a resilient week. Let's begin.`;
-
-  useEffect(() => {
-    const t = setTimeout(() => setShowBtn(true), 2000);
-    return () => clearTimeout(t);
-  }, []);
+  const fullText = `Your Blueprint is ready ${username}. I've Aetherized your week around what matters. Let's begin.`;
+  useEffect(() => { const t = setTimeout(() => setShowBtn(true), 1600); return () => clearTimeout(t); }, []);
   useEffect(() => {
     let i = 0;
     const id = setInterval(() => {
-      i++;
-      setTyped(fullText.slice(0, i));
+      i++; setTyped(fullText.slice(0, i));
       if (i >= fullText.length) clearInterval(id);
-    }, 28);
+    }, 24);
     return () => clearInterval(id);
   }, [fullText]);
 
   return (
     <div className="p-5 flex flex-col items-center min-h-full">
       <Logo size={30} />
-      <h2 className="font-serif-d text-[24px] font-bold text-[#2c1810] mt-3 text-center">Congratulations {username}</h2>
-
+      <h2 className="font-serif-d text-[24px] font-bold text-[#2c1810] mt-3 text-center">Aetherization complete</h2>
       <div className="mt-4 w-full rounded-3xl p-5 relative overflow-hidden"
         style={{ background: "linear-gradient(180deg, #3a5e26, #2d4a1e)", border: "3px solid #b87333" }}>
-        <div className="absolute top-2 left-1/2 -translate-x-1/2 text-2xl">🎓</div>
         {[...Array(8)].map((_, i) => (
           <div key={i} className="absolute sparkle" style={{
             top: `${10 + (i * 11) % 80}%`, left: `${5 + (i * 17) % 90}%`,
@@ -1220,12 +990,7 @@ function Screen7({ username, onContinue }: { username: string; onContinue: () =>
         </div>
         <div className="h-1 bg-[#b87333] w-1/2 mx-auto mt-3 rounded-full" />
       </div>
-
-      <div className="w-full mt-4">
-        <ProgressBar pct={100} />
-        <div className="text-center mt-1 text-[12px] font-bold text-[#2d4a1e]">Aether-ization complete</div>
-        <div className="text-center text-[20px] font-bold text-[#2c1810]">100%</div>
-      </div>
+      <div className="w-full mt-4"><ProgressBar pct={100} /></div>
 
       <div className="mt-3 flex items-start gap-2">
         <Aether size={40} />
@@ -1236,14 +1001,14 @@ function Screen7({ username, onContinue }: { username: string; onContinue: () =>
 
       {showBtn && (
         <button onClick={onContinue} className="btn-copper px-5 py-2 text-xs mt-auto self-end fade-in">
-          Blueprint →
+          Open Blueprint →
         </button>
       )}
     </div>
   );
 }
 
-// ============ SCREEN 8 DASHBOARD ============
+// ============ SCREEN 8 — DASHBOARD / BLUEPRINT ============
 function getWeekRange(): string {
   const now = new Date();
   const day = now.getDay();
@@ -1254,16 +1019,16 @@ function getWeekRange(): string {
 }
 
 function computeDistribution(selected: string[], sliders: Record<string, GoalSliders>, totalHours: number, tasks: Record<string, string[]>) {
-  const available = Math.max(0, totalHours - 0.5);
+  const available = Math.max(1, totalHours);
   const weighted: Record<string, number> = {};
   let sum = 0;
   selected.forEach((g) => {
     const s = sliders[g] ?? { volatility: 5, traffic: 5 };
-    const w = (s.traffic + s.volatility) * (GOAL_MULTIPLIERS[g] ?? 1.0);
-    weighted[g] = Math.max(0.1, w);
-    sum += weighted[g];
+    const w = Math.max(0.5, (s.traffic + s.volatility));
+    weighted[g] = w;
+    sum += w;
   });
-  const result: { goal: string; hours: number; weighted: number; tasks: { name: string; minutes: number }[] }[] = [];
+  const result: { goal: string; hours: number; weighted: number; tasks: { name: string; minutes: number; milestones: string[] }[] }[] = [];
   selected.forEach((g) => {
     let hours = sum > 0 ? (weighted[g] / sum) * available : 0;
     hours = Math.max(0.5, Math.round(hours * 2) / 2);
@@ -1271,20 +1036,61 @@ function computeDistribution(selected: string[], sliders: Record<string, GoalSli
     const perTask = taskList.length > 0 ? Math.max(10, Math.round((hours * 60) / taskList.length / 5) * 5) : 0;
     result.push({
       goal: g, hours, weighted: weighted[g],
-      tasks: taskList.map((t) => ({ name: t, minutes: perTask })),
+      tasks: taskList.map((t) => ({ name: t, minutes: perTask, milestones: mockMilestones(t) })),
     });
   });
   result.sort((a, b) => b.weighted - a.weighted);
   return result;
 }
 
-function Screen8({ username, selectedGoals, goalSliders, tasksPerGoal, totalHoursPerDay, resilienceScore, vaultedTasks, reservePool, planningLag, onNav, userProfile, aetherInsights, setAetherInsights, panelCache, setPanelCache }: any) {
-  const dist = useMemo(() => computeDistribution(selectedGoals, goalSliders, totalHoursPerDay || 6, tasksPerGoal),
-    [selectedGoals, goalSliders, totalHoursPerDay, tasksPerGoal]);
+function Screen8(props: any) {
+  const {
+    username, selectedGoals, goalSliders, tasksPerGoal, setTasksPerGoal, setSelectedGoals, setGoalSliders,
+    totalHoursPerDay, vaultedTasks, onNav, userProfile, aetherInsights, setAetherInsights,
+    panelCache, setPanelCache, refinementSeen, setRefinementSeen, refinementNotes, setRefinementNotes,
+    regenTick, setRegenTick,
+  } = props;
+
+  const dist = useMemo(
+    () => computeDistribution(selectedGoals, goalSliders, totalHoursPerDay || 5, tasksPerGoal),
+    // regenTick invalidates memo so the visual reshuffle animation re-runs
+    [selectedGoals, goalSliders, totalHoursPerDay, tasksPerGoal, regenTick]
+  );
+  const lifeLoad = useMemo(() => computeLifeLoad(selectedGoals, goalSliders), [selectedGoals, goalSliders]);
+
   const [panel, setPanel] = useState<string | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
-  const [chatStartMic, setChatStartMic] = useState(false);
-  const lifeLoad = useMemo(() => computeLifeLoad(selectedGoals, goalSliders), [selectedGoals, goalSliders]);
+  const [showRefinement, setShowRefinement] = useState(!refinementSeen);
+  const [modifyOpen, setModifyOpen] = useState(false);
+
+  // Disruption panel
+  const [disruption, setDisruption] = useState("");
+  const [disruptionMsg, setDisruptionMsg] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const [loadTrend, setLoadTrend] = useState(false); // reserved for future
+  void loadTrend;
+
+  const submitDisruption = () => {
+    if (!disruption.trim()) return;
+    setDisruptionMsg("Got it — updating your week…");
+    setRefreshing(true);
+    // clear caches so panels re-fetch mock/AI content on next open
+    setPanelCache({});
+    setRegenTick((t: number) => t + 1);
+    setTimeout(() => {
+      setRefreshing(false);
+      setDisruptionMsg("Blueprint updated. Your week stays on track.");
+      setDisruption("");
+      setTimeout(() => setDisruptionMsg(null), 3500);
+    }, 1400);
+  };
+
+  const regenerateBlueprint = () => {
+    setRefreshing(true);
+    setRegenTick((t: number) => t + 1);
+    setTimeout(() => setRefreshing(false), 900);
+  };
 
   return (
     <div className="flex flex-col h-full">
@@ -1292,46 +1098,69 @@ function Screen8({ username, selectedGoals, goalSliders, tasksPerGoal, totalHour
         <div className="flex-1">
           <AetherProactiveInsight
             screenName="Blueprint Dashboard"
-            userData={{ username, lifeLoadScore: lifeLoad, selectedGoals, reservePool, planningLag, resilienceScore, timeOfDay: new Date().getHours(), location: userProfile?.location, totalHoursPerDay }}
+            userData={{ username, lifeLoadScore: lifeLoad, selectedGoals, timeOfDay: new Date().getHours(), location: userProfile?.location, totalHoursPerDay }}
             cache={aetherInsights}
             setCache={setAetherInsights}
           />
         </div>
-        <div className="flex flex-col items-end gap-1">
-          <Logo size={22} />
-          <ResilienceGauge score={resilienceScore} />
-        </div>
+        <Logo size={22} />
       </div>
 
-      {planningLag?.totalMins > 0 && (
-        <div className="mx-3 mb-1 p-2 bg-[#d4843a]/30 border border-[#d4843a] rounded-lg text-[10px] text-[#2c1810]">
-          ⚠️ {planningLag.totalMins} mins of planning lag carried over. No rush, no guilt.
-        </div>
-      )}
-
-      <div className="px-3 flex gap-1">
-        <button onClick={() => { setChatStartMic(false); setChatOpen(true); }} className="btn-olive px-2 py-0.5 text-[10px]">Ask me</button>
-        <button onClick={() => { setChatStartMic(true); setChatOpen(true); }} className="btn-copper px-1.5 py-0.5 text-[10px]">🎤</button>
+      <div className="px-3 flex items-center gap-2">
+        <button onClick={() => setChatOpen(true)} className="btn-olive px-2 py-0.5 text-[10px]">Ask Aether</button>
+        <button onClick={() => setModifyOpen(true)} className="btn-copper px-2 py-0.5 text-[10px]">✎ Modify goals/tasks</button>
       </div>
 
       <div className="px-3 mt-2 flex items-center gap-2">
-        <div className="flex flex-col">
-          <div className="flex items-center gap-1 bg-[#2d4a1e] rounded-full px-2 py-0.5 text-[10px] text-[#e8d5b0]">
-            <span>🔒</span>
-            <span>{totalHoursPerDay || 6} hrs/day planned</span>
-          </div>
+        <div className="flex items-center gap-1 bg-[#2d4a1e] rounded-full px-2 py-0.5 text-[10px] text-[#e8d5b0]">
+          <span>🔒</span><span>{totalHoursPerDay} hrs/day planned</span>
         </div>
         <div className="flex-1 text-right text-[10px] bg-[#b87333] text-white rounded-full px-2 py-0.5">{getWeekRange()}</div>
       </div>
 
-      <h3 className="text-center font-serif-d font-bold text-[14px] text-[#2c1810] mt-1">{username}'s Balanced Blueprint</h3>
+      {/* Disruption input */}
+      <div className="px-3 mt-2">
+        <div className="bg-[#2d4a1e] rounded-xl p-2 flex items-center gap-2">
+          <span className="text-lg">🌩️</span>
+          <input
+            value={disruption}
+            onChange={(e) => setDisruption(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && submitDisruption()}
+            placeholder="Something happened? Tell me."
+            className="flex-1 bg-[#e8d5a3] text-[#2c1810] rounded-full px-3 py-1 text-[11px] outline-none border border-[#b87333]"
+          />
+          <button onClick={submitDisruption} className="btn-copper px-3 py-1 text-[10px]">Send</button>
+        </div>
+        {disruptionMsg && <div className="text-[10px] italic text-[#2d4a1e] mt-1 fade-in">{disruptionMsg}</div>}
+      </div>
+
+      {/* Placeholder widget row */}
+      <div className="px-3 mt-2 grid grid-cols-3 gap-2">
+        <PlaceholderCard title="Life Load Trend" body={<MiniTrend />} tag="mock" />
+        <PlaceholderCard title="Current Focus" body={
+          <div className="text-[10px] text-[#e8d5b0] font-semibold truncate">{dist[0]?.goal ?? "—"}</div>
+        } tag="mock" />
+        <PlaceholderCard title="Weekly Snapshot" body={<MiniSnapshot />} tag="mock" />
+      </div>
+
+      <div className="px-3 mt-2">
+        <div className="dark-card">
+          <div className="text-[10px] font-bold text-[#e8d5b0]">Upcoming High-Impact Tasks <span className="text-[8px] text-[#d4a843] italic">(placeholder)</span></div>
+          <ul className="text-[10px] text-[#e8d5b0]/80 mt-1 space-y-0.5">
+            {dist.slice(0, 3).flatMap((d) => d.tasks.slice(0, 1).map((t, i) => (
+              <li key={d.goal + i}>• {t.name} <span className="text-[#a3c54a]">({d.goal})</span></li>
+            )))}
+          </ul>
+        </div>
+      </div>
+
+      <h3 className="text-center font-serif-d font-bold text-[14px] text-[#2c1810] mt-2">{username}'s Blueprint</h3>
+      <div className="text-center text-[9px] text-[#5a3a20] italic">Grouped by goal → task → milestones</div>
 
       <div className="flex-1 flex gap-2 px-2 mt-1 overflow-hidden">
-        <div className="flex-1 overflow-y-auto thin-scroll space-y-2 pr-1">
+        <div key={regenTick} className={`flex-1 overflow-y-auto thin-scroll space-y-2 pr-1 ${refreshing ? "opacity-60" : ""} fade-in`}>
           {dist.map((d) => {
-            const badge = d.weighted >= 13 ? { l: "High", c: "#ec4899" } :
-              d.weighted >= 8 ? { l: "Medium", c: "#06b6d4" } : { l: "Low", c: "#d4843a" };
-            const volatile = (goalSliders[d.goal]?.volatility ?? 0) > 7;
+            const focus = focusFor(goalSliders[d.goal]);
             return (
               <div key={d.goal} className="dark-card text-[10px]">
                 <div className="flex items-center justify-between">
@@ -1339,38 +1168,35 @@ function Screen8({ username, selectedGoals, goalSliders, tasksPerGoal, totalHour
                   <span className="text-[#a3c54a] font-bold">{d.hours} hr/day</span>
                 </div>
                 <div className="flex gap-1 mt-1">
-                  <span className="text-[8px] px-1.5 py-0.5 rounded-full" style={{ background: badge.c, color: "#fff" }}>
-                    {badge.l}
-                  </span>
-                  {volatile && <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-[#d4843a] text-white">Volatile</span>}
+                  <span className="text-[8px] px-1.5 py-0.5 rounded-full" style={{ background: focus.color, color: "#fff" }}>{focus.label}</span>
                 </div>
-                <div className="mt-1 space-y-1">
+                <div className="mt-2 space-y-1.5">
+                  {d.tasks.length === 0 && <div className="text-[9px] italic text-[#e8d5b0]/70">No tasks yet — add some via Modify.</div>}
                   {d.tasks.map((t, i) => (
                     <div key={i} className="bg-[#e8d5a3] text-[#2c1810] rounded-lg p-1.5">
                       <div className="flex justify-between font-semibold text-[10px]">
-                        <span>{t.name}</span>
+                        <span>▸ {t.name}</span>
                         <span className="text-[#4a7c59]">{t.minutes} min/day</span>
                       </div>
-                      <div className="flex items-start gap-1 mt-0.5">
-                        <span className="text-[9px]">🏷️</span>
-                        <span className="text-[8px] italic flex-1">{suggestionFor(t.name)}</span>
-                        <span className="text-[10px]">?</span>
-                      </div>
+                      <ul className="mt-1 space-y-0.5 pl-2">
+                        {t.milestones.map((m, k) => (
+                          <li key={k} className="text-[9px] text-[#5a3a20]">• {m}</li>
+                        ))}
+                      </ul>
                     </div>
                   ))}
                 </div>
               </div>
             );
           })}
+          <button onClick={regenerateBlueprint} className="btn-olive w-full py-1.5 text-[11px] mt-1">↻ Regenerate Blueprint</button>
         </div>
 
-        {/* right side icons */}
         <div className="flex flex-col gap-1.5 py-1">
           {[
             { id: "opp", icon: "🧭" },
             { id: "boost", icon: "🚀" },
             { id: "spend", icon: "💰" },
-            { id: "recal", icon: "⚙️" },
             { id: "day", icon: "📅" },
           ].map((b) => (
             <button key={b.id} onClick={() => setPanel(b.id)}
@@ -1382,20 +1208,250 @@ function Screen8({ username, selectedGoals, goalSliders, tasksPerGoal, totalHour
         </div>
       </div>
 
-      <BottomNav vault={vaultedTasks.length} onNav={onNav} active={8} />
+      <BottomNav onNav={onNav} active={8} />
 
       {panel && <SidePanel panelId={panel} dist={dist} onClose={() => setPanel(null)} onNav={onNav}
-        userData={{ username, selectedGoals, tasksPerGoal, lifeLoadScore: lifeLoad, timeOfDay: new Date().getHours(), totalHoursPerDay, goalSliders, location: userProfile?.location, resilienceScore }}
+        userData={{ username, selectedGoals, tasksPerGoal, lifeLoadScore: lifeLoad, timeOfDay: new Date().getHours(), totalHoursPerDay, goalSliders, location: userProfile?.location }}
         panelCache={panelCache} setPanelCache={setPanelCache} />}
-      {chatOpen && <AetherChat username={username} onClose={() => setChatOpen(false)} startWithMic={chatStartMic} />}
+      {chatOpen && <AetherChat username={username} onClose={() => setChatOpen(false)} />}
+
+      {showRefinement && (
+        <Pass2RefinementModal
+          onClose={() => { setShowRefinement(false); setRefinementSeen(true); }}
+          notes={refinementNotes}
+          setNotes={setRefinementNotes}
+        />
+      )}
+
+      {modifyOpen && (
+        <ModifyModal
+          allGoals={DEFAULT_GOALS}
+          selectedGoals={selectedGoals}
+          goalSliders={goalSliders}
+          tasksPerGoal={tasksPerGoal}
+          onClose={() => setModifyOpen(false)}
+          onTasksChanged={(next: Record<string, string[]>) => {
+            setTasksPerGoal(next);
+            // Task-only edit: only Blueprint refreshes, LifeLoad stays put.
+            setRefreshing(true);
+            setRegenTick((t: number) => t + 1);
+            setPanelCache({});
+            setTimeout(() => setRefreshing(false), 900);
+          }}
+          onGoalsChanged={(nextGoals: string[], nextSliders: Record<string, GoalSliders>) => {
+            setSelectedGoals(nextGoals);
+            setGoalSliders(nextSliders);
+            // Goal add/remove: Blueprint AND LifeLoad recalculate visibly.
+            setRefreshing(true);
+            setRegenTick((t: number) => t + 1);
+            setPanelCache({});
+            setTimeout(() => setRefreshing(false), 900);
+          }}
+        />
+      )}
     </div>
   );
 }
 
-function BottomNav({ vault, onNav, active }: { vault: number; onNav: (s: number) => void; active: number }) {
+// ============ MINI PLACEHOLDER WIDGETS ============
+function PlaceholderCard({ title, body, tag }: { title: string; body: React.ReactNode; tag?: string }) {
+  return (
+    <div className="dark-card !p-2 relative">
+      {tag && <span className="absolute top-1 right-1 text-[7px] uppercase text-[#d4a843]/80">{tag}</span>}
+      <div className="text-[9px] font-bold text-[#e8d5b0]">{title}</div>
+      <div className="mt-1">{body}</div>
+    </div>
+  );
+}
+function MiniTrend() {
+  const points = [10, 22, 18, 30, 28, 40, 35];
+  const max = 45;
+  return (
+    <svg viewBox="0 0 70 22" className="w-full h-6">
+      <polyline
+        fill="none" stroke="#a3c54a" strokeWidth="1.5"
+        points={points.map((p, i) => `${i * 11 + 2},${22 - (p / max) * 18}`).join(" ")}
+      />
+    </svg>
+  );
+}
+function MiniSnapshot() {
+  const days = ["M", "T", "W", "T", "F", "S", "S"];
+  const filled = [3, 4, 2, 4, 4, 0, 0];
+  return (
+    <div className="flex items-end gap-0.5 h-6">
+      {days.map((d, i) => (
+        <div key={i} className="flex flex-col items-center flex-1">
+          <div className="w-full rounded-t" style={{ height: `${filled[i] * 4}px`, background: "#4a7c59" }} />
+          <span className="text-[7px] text-[#e8d5b0]/70">{d}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ============ Pass-2 REFINEMENT MODAL ============
+const REFINE_OPTIONS = [
+  "Childcare / caregiving",
+  "Eldercare",
+  "Planned event this week (wedding, travel, exam, etc.)",
+  "Sleep or commute different than usual",
+  "Something else affecting my time or energy",
+];
+
+function Pass2RefinementModal({ onClose, notes, setNotes }: any) {
+  const [ticked, setTicked] = useState<string[]>(notes || []);
+  const [followUp, setFollowUp] = useState("");
+  const [phase, setPhase] = useState<"tick" | "chat">("tick");
+  const toggle = (o: string) => setTicked(ticked.includes(o) ? ticked.filter(x => x !== o) : [...ticked, o]);
+
+  const advance = () => {
+    if (ticked.length === 0) { onClose(); return; }
+    setPhase("chat");
+  };
+  const submitFollowUp = () => {
+    setNotes([...(notes || []), ...ticked, followUp.trim()].filter(Boolean));
+    onClose();
+  };
+
+  return (
+    <div className="absolute inset-0 bg-black/50 z-50 flex items-end fade-in" onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()}
+        className="w-full bg-[#c8b89a] rounded-t-3xl p-4 border-t-4 border-[#b87333]" style={{ maxHeight: "80%" }}>
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="font-serif-d text-[16px] font-bold text-[#2c1810]">One more thing</h3>
+          <button onClick={onClose} className="text-xl">✕</button>
+        </div>
+        {phase === "tick" ? (
+          <>
+            <p className="text-[11px] text-[#2c1810]">To make your Blueprint fit your real life — anything below apply to your week?</p>
+            <div className="mt-2 space-y-1.5">
+              {REFINE_OPTIONS.map(o => (
+                <label key={o} className="flex items-center gap-2 bg-[#e8d5a3] border border-[#b87333] rounded-lg p-2 text-[11px] text-[#2c1810]">
+                  <input type="checkbox" checked={ticked.includes(o)} onChange={() => toggle(o)} />
+                  {o}
+                </label>
+              ))}
+            </div>
+            <button onClick={advance} className="btn-copper w-full py-2 text-sm mt-3">
+              {ticked.length === 0 ? "Nothing this week — Continue" : "Continue →"}
+            </button>
+          </>
+        ) : (
+          <>
+            <div className="mt-1 flex items-start gap-2">
+              <Aether size={34} />
+              <div className="bg-[#e8d5a3] border-2 border-[#b87333] rounded-2xl rounded-tl-sm p-3 text-[11px] text-[#2c1810]">
+                Roughly how many hours/week for {ticked.join(", ").toLowerCase()}?
+                {ticked.some(t => t.includes("event")) && " And what's the event, and how many hours will it take?"}
+              </div>
+            </div>
+            <textarea value={followUp} onChange={(e) => setFollowUp(e.target.value)}
+              className="w-full mt-3 rounded-xl border border-[#b87333] bg-[#e8d5a3] p-2 text-[12px] text-[#2c1810] h-20 outline-none"
+              placeholder="Short answer — Aether will fold it in." />
+            <button onClick={submitFollowUp} className="btn-copper w-full py-2 text-sm mt-2">Save & continue →</button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ============ MODIFY MODAL ============
+function ModifyModal({ allGoals, selectedGoals, goalSliders, tasksPerGoal, onClose, onTasksChanged, onGoalsChanged }: any) {
+  const [tab, setTab] = useState<"tasks" | "goals">("tasks");
+  const [localTasks, setLocalTasks] = useState<Record<string, string[]>>({ ...tasksPerGoal });
+  const [localGoals, setLocalGoals] = useState<string[]>([...selectedGoals]);
+
+  const updateTask = (g: string, i: number, v: string) => {
+    const arr = [...(localTasks[g] ?? [])];
+    arr[i] = v;
+    setLocalTasks({ ...localTasks, [g]: arr });
+  };
+  const addTask = (g: string) => {
+    const arr = [...(localTasks[g] ?? []), ""];
+    setLocalTasks({ ...localTasks, [g]: arr });
+  };
+  const removeTask = (g: string, i: number) => {
+    const arr = [...(localTasks[g] ?? [])];
+    arr.splice(i, 1);
+    setLocalTasks({ ...localTasks, [g]: arr });
+  };
+  const toggleGoal = (g: string) => {
+    setLocalGoals(localGoals.includes(g) ? localGoals.filter(x => x !== g) : [...localGoals, g]);
+  };
+
+  const saveTasks = () => { onTasksChanged(localTasks); onClose(); };
+  const saveGoals = () => {
+    const sliders = { ...goalSliders };
+    localGoals.forEach(g => { if (!sliders[g]) sliders[g] = GOAL_DEFAULTS[g] ?? { volatility: 5, traffic: 5 }; });
+    onGoalsChanged(localGoals, sliders);
+    onClose();
+  };
+
+  return (
+    <div className="absolute inset-0 bg-black/50 z-50 flex items-end fade-in" onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()}
+        className="w-full bg-[#c8b89a] rounded-t-3xl p-4 border-t-4 border-[#b87333]" style={{ maxHeight: "82%" }}>
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="font-serif-d text-[16px] font-bold text-[#2c1810]">Modify</h3>
+          <button onClick={onClose} className="text-xl">✕</button>
+        </div>
+        <div className="flex gap-1 mb-2">
+          <button onClick={() => setTab("tasks")} className={`px-3 py-1 rounded-full text-[11px] ${tab === "tasks" ? "bg-[#2d4a1e] text-[#e8d5b0]" : "bg-[#e8d5a3] text-[#2c1810]"}`}>Tasks only</button>
+          <button onClick={() => setTab("goals")} className={`px-3 py-1 rounded-full text-[11px] ${tab === "goals" ? "bg-[#2d4a1e] text-[#e8d5b0]" : "bg-[#e8d5a3] text-[#2c1810]"}`}>Goals</button>
+        </div>
+        <div className="text-[9px] italic text-[#5a3a20] mb-2">
+          {tab === "tasks" ? "Editing tasks won't change your LifeLoad." : "Adding or removing goals will recalculate LifeLoad."}
+        </div>
+
+        <div className="overflow-y-auto thin-scroll" style={{ maxHeight: 380 }}>
+          {tab === "tasks" ? (
+            <div className="space-y-2">
+              {selectedGoals.map((g: string) => (
+                <div key={g} className="bg-[#e8d5a3] border border-[#b87333] rounded-lg p-2">
+                  <div className="font-bold text-[11px] text-[#2c1810]">{GOAL_ICONS[g] ?? "✨"} {g}</div>
+                  <div className="space-y-1 mt-1">
+                    {(localTasks[g] ?? []).map((t: string, i: number) => (
+                      <div key={i} className="flex gap-1 items-center">
+                        <input value={t} onChange={(e) => updateTask(g, i, e.target.value)}
+                          className="flex-1 rounded-full px-3 py-1 text-[11px] bg-white text-[#2c1810] border border-[#b87333]" />
+                        <button onClick={() => removeTask(g, i)} className="text-[#c44b3e] text-xs px-1">✕</button>
+                      </div>
+                    ))}
+                    <button onClick={() => addTask(g)} className="text-[10px] text-[#2d4a1e] underline">+ Add task</button>
+                  </div>
+                </div>
+              ))}
+              <button onClick={saveTasks} className="btn-copper w-full py-2 text-sm">Save tasks</button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {allGoals.map((g: string) => {
+                const sel = localGoals.includes(g);
+                return (
+                  <div key={g} onClick={() => toggleGoal(g)} className="goal-card cursor-pointer">
+                    <span>{GOAL_ICONS[g] ?? "✨"} {g}</span>
+                    <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold"
+                      style={{ background: sel ? "#4a7c59" : "transparent", border: `2px solid ${sel ? "#4a7c59" : "#d4843a"}`, color: "white" }}>
+                      {sel ? "✓" : ""}
+                    </div>
+                  </div>
+                );
+              })}
+              <button onClick={saveGoals} className="btn-copper w-full py-2 text-sm">Save goals</button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============ BOTTOM NAV ============
+function BottomNav({ onNav, active }: { onNav: (s: number) => void; active: number }) {
   const items = [
     { icon: "🏠", label: "Dashboard", screen: 8 },
-    { icon: "📋", label: "Blueprint", screen: 8 },
     { icon: "☀️", label: "Day", screen: 12 },
     { icon: "👤", label: "Profile", screen: 13 },
   ];
@@ -1412,6 +1468,7 @@ function BottomNav({ vault, onNav, active }: { vault: number; onNav: (s: number)
   );
 }
 
+// ============ PANELS (Day Boosters / Opportunity Map / Smart Spend) ============
 function AISkeleton() {
   return (
     <div className="space-y-2">
@@ -1442,13 +1499,12 @@ function DayBoostersPanel({ userData, panelCache, setPanelCache }: any) {
     } catch { setError(true); }
     finally { setLoading(false); }
   };
-
   useEffect(() => { if (!panelCache.boost) load(); }, []);
 
   if (loading) return <AISkeleton />;
   if (error || !data) return (
     <div className="text-center text-[11px] text-[#2c1810] italic">
-      Aether is recalibrating... tap refresh to try again ⚙️
+      Aether is recalibrating…
       <button onClick={() => load(true)} className="btn-copper px-3 py-1 mt-2 text-xs block mx-auto">Retry</button>
     </div>
   );
@@ -1466,7 +1522,7 @@ function DayBoostersPanel({ userData, panelCache, setPanelCache }: any) {
           )}
         </div>
       ))}
-      <button onClick={() => load(true)} className="btn-olive w-full py-1.5 text-[11px]">↻ Refresh Boosters</button>
+      <button onClick={() => load(true)} className="btn-olive w-full py-1.5 text-[11px]">↻ Regenerate Boosters</button>
     </div>
   );
 }
@@ -1476,6 +1532,7 @@ function OpportunityMapPanel({ userData, panelCache, setPanelCache }: any) {
   const [data, setData] = useState<any[] | null>(panelCache.opp || null);
   const [loading, setLoading] = useState(!panelCache.opp);
   const [error, setError] = useState(false);
+  const [mode, setMode] = useState<"text" | "visual">("text");
 
   const load = async (force = false) => {
     if (!force && panelCache.opp) return;
@@ -1487,20 +1544,26 @@ function OpportunityMapPanel({ userData, panelCache, setPanelCache }: any) {
     } catch { setError(true); }
     finally { setLoading(false); }
   };
-
   useEffect(() => { if (!panelCache.opp) load(); }, []);
 
   if (loading) return <AISkeleton />;
   if (error || !data) return (
     <div className="text-center text-[11px] text-[#2c1810] italic">
-      Aether is recalibrating... tap refresh to try again ⚙️
+      Aether is recalibrating…
       <button onClick={() => load(true)} className="btn-copper px-3 py-1 mt-2 text-xs block mx-auto">Retry</button>
     </div>
   );
 
   return (
     <div className="space-y-2">
-      {data.map((c, i) => (
+      <div className="flex gap-1">
+        <button onClick={() => setMode("text")}
+          className={`px-3 py-1 rounded-full text-[10px] ${mode === "text" ? "bg-[#2d4a1e] text-[#e8d5b0]" : "bg-[#e8d5a3] text-[#2c1810]"}`}>Text</button>
+        <button onClick={() => setMode("visual")}
+          className={`px-3 py-1 rounded-full text-[10px] ${mode === "visual" ? "bg-[#2d4a1e] text-[#e8d5b0]" : "bg-[#e8d5a3] text-[#2c1810]"}`}>Visual</button>
+      </div>
+
+      {mode === "text" && data.map((c, i) => (
         <div key={i} className="rounded-lg p-2" style={{ background: "#2d4a1e", color: "#e8d5b0" }}>
           <div className="font-bold text-[12px] text-[#d4a843]">⚡ {c.axis}</div>
           <div className="text-[10px] mt-1">
@@ -1514,9 +1577,46 @@ function OpportunityMapPanel({ userData, panelCache, setPanelCache }: any) {
           <div className="text-[9px] italic mt-1 text-[#e8d5b0]/80">How to: {c.howTo}</div>
         </div>
       ))}
-      <button onClick={() => load(true)} className="btn-olive w-full py-1.5 text-[11px]">↻ Generate New Map</button>
+
+      {mode === "visual" && (
+        <div className="space-y-2">
+          {data.map((c, i) => (
+            <div key={i} className="bg-[#e8d5a3] border-2 border-[#b87333] rounded-lg p-2">
+              <div className="font-bold text-[11px] text-[#2c1810]">⚡ {c.axis}</div>
+              <div className="flex items-center gap-1 mt-2">
+                <FlowBox label={c.task1} sub={c.goal1} />
+                <FlowArrow />
+                <FlowBox label={c.task2} sub={c.goal2} highlight />
+                <FlowArrow />
+                <FlowBox label={`Saves ${c.timeSavedPerWeek}`} pill />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <button onClick={() => load(true)} className="btn-olive w-full py-1.5 text-[11px]">↻ Regenerate Map</button>
     </div>
   );
+}
+
+function FlowBox({ label, sub, highlight, pill }: { label: string; sub?: string; highlight?: boolean; pill?: boolean }) {
+  return (
+    <div
+      className={`flex-1 min-w-0 ${pill ? "rounded-full" : "rounded-md"} px-1.5 py-1 text-center`}
+      style={{
+        background: pill ? "#4a7c59" : highlight ? "#d4a843" : "#2d4a1e",
+        color: pill ? "#fff" : highlight ? "#2c1810" : "#e8d5b0",
+        border: "1px solid #6b3f1a",
+      }}
+    >
+      <div className="text-[9px] font-bold truncate">{label}</div>
+      {sub && <div className="text-[7px] italic truncate opacity-80">{sub}</div>}
+    </div>
+  );
+}
+function FlowArrow() {
+  return <div className="text-[#6b3f1a] text-xs shrink-0">→</div>;
 }
 
 function SmartSpendPanel({ userData, panelCache, setPanelCache }: any) {
@@ -1535,13 +1635,12 @@ function SmartSpendPanel({ userData, panelCache, setPanelCache }: any) {
     } catch { setError(true); }
     finally { setLoading(false); }
   };
-
   useEffect(() => { if (!panelCache.spend) load(); }, []);
 
   if (loading) return <AISkeleton />;
   if (error || !data) return (
     <div className="text-center text-[11px] text-[#2c1810] italic">
-      Aether is recalibrating... tap refresh to try again ⚙️
+      Aether is recalibrating…
       <button onClick={() => load(true)} className="btn-copper px-3 py-1 mt-2 text-xs block mx-auto">Retry</button>
     </div>
   );
@@ -1561,12 +1660,11 @@ function SmartSpendPanel({ userData, panelCache, setPanelCache }: any) {
             <span className="text-[9px] bg-[#4a7c59] text-white px-2 py-0.5 rounded-full">Saves {s.timeSavedPerWeek}</span>
           </div>
           <div className="text-[10px] italic text-[#2c1810] mt-1">{s.insight}</div>
-          <div className="text-[9px] text-[#5a3a20] mt-0.5">{s.reason}</div>
-          <a href={s.searchUrl} target="_blank" rel="noopener" className="btn-copper inline-block px-3 py-1 text-[10px] mt-1.5">Search on Amazon →</a>
+          <a href={s.searchUrl} target="_blank" rel="noopener" className="btn-copper inline-block px-3 py-1 text-[10px] mt-1.5">Search →</a>
         </div>
       ))}
-      <div className="text-[8px] italic text-[#5a3a20] text-center">Prices approximate. Search for current offers.</div>
-      <button onClick={() => load(true)} className="btn-olive w-full py-1.5 text-[11px]">↻ Refresh Suggestions</button>
+      <div className="text-[8px] italic text-[#5a3a20] text-center">Prices approximate.</div>
+      <button onClick={() => load(true)} className="btn-olive w-full py-1.5 text-[11px]">↻ Regenerate Suggestions</button>
     </div>
   );
 }
@@ -1582,22 +1680,6 @@ function SidePanel({ panelId, dist, onClose, onNav, userData, panelCache, setPan
   } else if (panelId === "spend") {
     title = "Smart Spend";
     content = <SmartSpendPanel userData={userData} panelCache={panelCache} setPanelCache={setPanelCache} />;
-  } else if (panelId === "recal") {
-    title = "Recalibrate";
-    content = (
-      <ul className="space-y-2 text-[11px]">
-        {dist.map((d: any) => (
-          <li key={d.goal} className="bg-[#e8d5a3] p-2 rounded-lg flex items-center justify-between">
-            <span className="font-semibold">{d.goal}</span>
-            <span className="flex items-center gap-1">
-              <button className="btn-copper px-2 py-0">-</button>
-              <span className="font-bold">{d.hours}</span>
-              <button className="btn-copper px-2 py-0">+</button>
-            </span>
-          </li>
-        ))}
-      </ul>
-    );
   } else if (panelId === "day") {
     title = "Day Blueprint";
     content = (
@@ -1620,18 +1702,18 @@ function SidePanel({ panelId, dist, onClose, onNav, userData, panelCache, setPan
           <h3 className="font-serif-d text-[18px] font-bold text-[#2c1810]">{title}</h3>
           <button onClick={onClose} className="text-xl">✕</button>
         </div>
-        <div className="overflow-y-auto thin-scroll" style={{ maxHeight: 400 }}>{content}</div>
+        <div className="overflow-y-auto thin-scroll" style={{ maxHeight: 440 }}>{content}</div>
       </div>
     </div>
   );
 }
 
-// ============ SCREEN 12 DAY OUTPUT ============
+// ============ SCREEN 12 — DAY OUTPUT ============
 function Screen12({ username, selectedGoals, goalSliders, tasksPerGoal, totalHoursPerDay,
   resilienceScore, setResilienceScore, reservePool, setReservePool, planningLag, setPlanningLag,
   vaultedTasks, setVaultedTasks, onNav, userProfile, aetherInsights, setAetherInsights }: any) {
 
-  const dist = useMemo(() => computeDistribution(selectedGoals, goalSliders, totalHoursPerDay || 6, tasksPerGoal),
+  const dist = useMemo(() => computeDistribution(selectedGoals, goalSliders, totalHoursPerDay || 5, tasksPerGoal),
     [selectedGoals, goalSliders, totalHoursPerDay, tasksPerGoal]);
 
   const allTasks: TaskItem[] = useMemo(() => {
@@ -1643,19 +1725,13 @@ function Screen12({ username, selectedGoals, goalSliders, tasksPerGoal, totalHou
   }, [dist]);
 
   const [tasks, setTasks] = useState<TaskItem[]>(allTasks);
-  const [result, setResult] = useState<null | { type: "A" | "B" | "C" | "D"; mins: number }>(null);
+  const [result, setResult] = useState<null | { type: "A" | "B" | "C" | "D" }>(null);
   const [recalibrating, setRecalibrating] = useState(false);
 
   useEffect(() => { setTasks(allTasks); }, [allTasks]);
 
   const toggle = (id: string) => setTasks(tasks.map((t) => t.id === id ? { ...t, done: !t.done } : t));
   const missed = tasks.filter((t) => !t.done);
-  const missedMin = missed.reduce((s, t) => s + t.minutes, 0);
-
-  const aetherMsg =
-    missed.length === 0 ? `Stellar work ${username}! Every gear turned perfectly. Resilience Score: ${resilienceScore}. Rest well.` :
-    missed.length === tasks.length ? `Life had other plans ${username}. Tap Life Happened — I'll recalibrate. Your goals are safe.` :
-    `${username}, I see friction today. No guilt — reserve hours are for this. Deselect what life interrupted.`;
 
   const isSaturday = new Date().getDay() === 6;
 
@@ -1663,39 +1739,23 @@ function Screen12({ username, selectedGoals, goalSliders, tasksPerGoal, totalHou
     setRecalibrating(true);
     setTimeout(() => {
       setRecalibrating(false);
-      const carried = reservePool.carriedFromLastWeek || 0;
-      const current = reservePool.currentWeekRemaining || 0;
-      const totalReserveMin = (carried + current) * 60;
-
       if (isSaturday && missed.length > 0) {
         setVaultedTasks([...vaultedTasks, ...missed.map((m: TaskItem) => m.name)]);
         setResilienceScore(resilienceScore + 8);
-        setResult({ type: "D", mins: missedMin });
-      } else if (totalReserveMin >= missedMin) {
-        // use carried first, then current
-        let remaining = missedMin / 60;
-        const useCarried = Math.min(carried, remaining);
-        remaining -= useCarried;
-        const useCurrent = Math.min(current, remaining);
-        setReservePool({
-          ...reservePool,
-          carriedFromLastWeek: carried - useCarried,
-          currentWeekRemaining: current - useCurrent,
-          usedThisWeek: (reservePool.usedThisWeek || 0) + useCarried + useCurrent,
-          totalAvailable: (carried - useCarried) + (current - useCurrent),
-        });
+        setResult({ type: "D" });
+      } else if (missed.length <= 2) {
+        // Silently use hidden reserve — never show numbers.
+        setReservePool({ ...reservePool, usedThisWeek: (reservePool.usedThisWeek || 0) + missed.length * 0.5 });
         setResilienceScore(resilienceScore + 10);
-        setResult({ type: "A", mins: missedMin });
-      } else if (totalReserveMin > 0) {
-        setReservePool({ ...reservePool, carriedFromLastWeek: 0, currentWeekRemaining: 0, totalAvailable: 0, usedThisWeek: (reservePool.usedThisWeek || 0) + carried + current });
-        const lagMin = missedMin - totalReserveMin;
-        setPlanningLag({ tasks: [...planningLag.tasks, ...missed.map((m: TaskItem) => m.name)], totalMins: planningLag.totalMins + lagMin });
+        setResult({ type: "A" });
+      } else if (missed.length <= 4) {
+        setPlanningLag({ tasks: [...planningLag.tasks, ...missed.map((m: TaskItem) => m.name)], totalMins: planningLag.totalMins + missed.length * 15 });
         setResilienceScore(resilienceScore + 5);
-        setResult({ type: "B", mins: totalReserveMin });
+        setResult({ type: "B" });
       } else {
-        setPlanningLag({ tasks: [...planningLag.tasks, ...missed.map((m: TaskItem) => m.name)], totalMins: planningLag.totalMins + missedMin });
+        setPlanningLag({ tasks: [...planningLag.tasks, ...missed.map((m: TaskItem) => m.name)], totalMins: planningLag.totalMins + missed.length * 20 });
         setResilienceScore(resilienceScore + 3);
-        setResult({ type: "C", mins: missedMin });
+        setResult({ type: "C" });
       }
     }, 1500);
   };
@@ -1706,22 +1766,19 @@ function Screen12({ username, selectedGoals, goalSliders, tasksPerGoal, totalHou
         <div className="flex-1">
           <AetherProactiveInsight
             screenName="Day Output"
-            userData={{ username, completedTasks: tasks.filter(t => t.done).map(t => t.name), missedTasks: missed.map(m => m.name), reservePool, resilienceScore, timeOfDay: new Date().getHours(), planningLag }}
+            userData={{ username, completedTasks: tasks.filter(t => t.done).map(t => t.name), missedTasks: missed.map(m => m.name), timeOfDay: new Date().getHours() }}
             cache={aetherInsights}
             setCache={setAetherInsights}
           />
         </div>
-        <div className="flex flex-col items-end gap-1">
-          <Logo size={22} />
-          <ResilienceGauge score={resilienceScore} />
-        </div>
+        <Logo size={22} />
       </div>
 
       <div className="px-4">
         <h2 className="font-serif-d text-[20px] font-bold text-[#2c1810]">How was your day?</h2>
         <div className="text-[10px] text-[#5a3a20]">{new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}</div>
         <div className="text-[11px] font-bold text-[#2c1810] mt-2">Performance Recap (Auto-Validated)</div>
-        <div className="text-[9px] italic text-[#5a3a20]">I've marked targets as achieved {username}. Untick anything life didn't allow — no judgment.</div>
+        <div className="text-[9px] italic text-[#5a3a20]">I've marked your tasks as done {username}. Untick anything life didn't allow — no judgment.</div>
       </div>
 
       <div className="flex-1 overflow-y-auto thin-scroll px-3 mt-2 space-y-1.5">
@@ -1744,7 +1801,7 @@ function Screen12({ username, selectedGoals, goalSliders, tasksPerGoal, totalHou
 
       {missed.length > 0 && !result && (
         <div className="px-3 py-2 space-y-1">
-          <div className="text-[10px] text-[#2c1810]">Tasks missed: {missed.length} | Time: {missedMin} mins</div>
+          <div className="text-[10px] text-[#2c1810]">Tasks missed: {missed.length}</div>
           <button onClick={lifeHappened} className="btn-copper w-full py-2 text-xs">LIFE HAPPENED</button>
           <div className="text-[9px] text-center text-[#5a3a20] italic">Aether will recalibrate — no guilt, no penalty.</div>
         </div>
@@ -1754,7 +1811,7 @@ function Screen12({ username, selectedGoals, goalSliders, tasksPerGoal, totalHou
         <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-[#e8d5a3] p-5 rounded-2xl text-center">
             <BigGear size={60} spin />
-            <div className="text-[12px] font-bold text-[#2c1810] mt-2">Aether is recalibrating your week...</div>
+            <div className="text-[12px] font-bold text-[#2c1810] mt-2">Aether is Aetherizing your week…</div>
           </div>
         </div>
       )}
@@ -1773,10 +1830,10 @@ function Screen12({ username, selectedGoals, goalSliders, tasksPerGoal, totalHou
               {result.type === "D" && "Tasks Vaulted Safely ✓"}
             </div>
             <div className="text-[10px] mt-1">
-              {result.type === "A" && `Good news — I'd quietly protected ${(result.mins/60).toFixed(1)} hrs of reserve time this week. We just used it to absorb today's missed tasks. Blueprint unchanged.`}
-              {result.type === "B" && `Hidden reserve covered ${result.mins} mins of what life took. The remainder is redistributed across the week.`}
-              {result.type === "C" && "Reserve fully used. High Priority tasks protected. Medium and Low redistributed."}
-              {result.type === "D" && `Tasks moved to Saturday Vault. Vault holds ${vaultedTasks.length} items.`}
+              {result.type === "A" && "I've absorbed the missed work — your blueprint stays intact."}
+              {result.type === "B" && "Some was absorbed, the rest redistributed across your week."}
+              {result.type === "C" && "High-priority tasks protected. The rest redistributed."}
+              {result.type === "D" && "Tasks moved to Saturday Vault. Your week stays on track."}
             </div>
           </div>
           <button onClick={() => { setResult(null); setTasks(tasks.map((t) => ({ ...t, done: true }))); }}
@@ -1784,20 +1841,29 @@ function Screen12({ username, selectedGoals, goalSliders, tasksPerGoal, totalHou
         </div>
       )}
 
-      <BottomNav vault={vaultedTasks.length} onNav={onNav} active={12} />
+      <BottomNav onNav={onNav} active={12} />
     </div>
   );
 }
 
-// ============ SCREEN 13 PROFILE ============
-function Screen13({ username, userProfile, selectedGoals, resilienceScore, reservePool, vaultedTasks, totalHoursPerDay, onNav }: any) {
-  const reserveProtected = ((reservePool?.usedThisWeek || 0)).toFixed(1);
+// ============ SCREEN 13 — PROFILE (with optional demographics) ============
+function Screen13({ username, profession, userProfile, setUserProfile, selectedGoals, vaultedTasks, onNav }: any) {
+  const [editing, setEditing] = useState(false);
+  const [age, setAge] = useState(userProfile?.age || "");
+  const [gender, setGender] = useState(userProfile?.gender || "");
+  const [location, setLocation] = useState(userProfile?.location || "");
   const tasksPlanned = selectedGoals.length * 4;
+
+  const save = () => {
+    setUserProfile({ age, gender, location });
+    setEditing(false);
+    toast.success("Optional details saved");
+  };
+
   return (
     <div className="flex flex-col h-full">
       <div className="p-4 flex items-center justify-between">
         <Logo size={26} />
-        <ResilienceGauge score={resilienceScore} />
       </div>
       <div className="px-4 flex flex-col items-center">
         <div className="w-20 h-20 rounded-full flex items-center justify-center text-3xl"
@@ -1805,17 +1871,17 @@ function Screen13({ username, userProfile, selectedGoals, resilienceScore, reser
           {(username?.[0] || "?").toUpperCase()}
         </div>
         <h2 className="font-serif-d text-[22px] font-bold text-[#2c1810] mt-2">{username || "Friend"}</h2>
-        <div className="text-[11px] text-[#5a3a20]">{userProfile?.location || "Earth"} · DoneHo member</div>
+        <div className="text-[11px] text-[#5a3a20]">{profession || "—"} · DoneHo member</div>
       </div>
 
       <div className="px-4 mt-4">
-        <div className="text-[11px] font-bold text-[#2c1810] mb-2">Weekly Stats</div>
+        <div className="text-[11px] font-bold text-[#2c1810] mb-2">Weekly Snapshot <span className="text-[9px] italic text-[#5a3a20]">(mock)</span></div>
         <div className="grid grid-cols-2 gap-2">
           {[
-            { label: "Weeks Planned", value: "1" },
-            { label: "Tasks Planned", value: String(tasksPlanned) },
-            { label: "Hours Recovered", value: reserveProtected },
-            { label: "Burnout Prevented", value: String(vaultedTasks?.length || 0) },
+            { label: "Weeks planned", value: "1" },
+            { label: "Tasks planned", value: String(tasksPlanned) },
+            { label: "Goals active", value: String(selectedGoals.length) },
+            { label: "Vaulted safely", value: String(vaultedTasks?.length || 0) },
           ].map((s) => (
             <div key={s.label} className="bg-[#e8d5a3] border border-[#b87333] rounded-lg p-2">
               <div className="text-[18px] font-bold text-[#2d4a1e]">{s.value}</div>
@@ -1825,25 +1891,40 @@ function Screen13({ username, userProfile, selectedGoals, resilienceScore, reser
         </div>
       </div>
 
+      {/* Optional demographic fields — clearly separate, non-blocking */}
       <div className="px-4 mt-4">
-        <div className="rounded-xl p-3 text-white" style={{ background: "linear-gradient(135deg,#2d4a1e,#6b3f1a)", border: "2px solid #d4a843" }}>
+        <div className="bg-[#e8d5a3]/60 border border-dashed border-[#b87333] rounded-xl p-3">
           <div className="flex items-center justify-between">
-            <div className="font-bold text-[14px]">DoneHo Plus</div>
-            <span className="text-[9px] bg-[#d4a843] text-[#2c1810] px-2 py-0.5 rounded-full font-bold">Premium</span>
+            <div>
+              <div className="text-[11px] font-bold text-[#2c1810]">Optional details</div>
+              <div className="text-[9px] italic text-[#5a3a20]">Optional — helps with future personalization features.</div>
+            </div>
+            <button onClick={() => setEditing(!editing)} className="btn-olive px-2 py-0.5 text-[10px]">{editing ? "Cancel" : "Edit"}</button>
           </div>
-          <ul className="text-[10px] mt-2 space-y-0.5 text-[#e8d5b0]">
-            <li>• Adaptive Blueprint Rebalancing</li>
-            <li>• Smart Spend AI</li>
-            <li>• Opportunity Map Pro</li>
-            <li>• Family Coordination</li>
-            <li>• Weekly Insight Reports</li>
-          </ul>
-          <button className="btn-copper w-full mt-2 py-1.5 text-[11px]">Unlock for ₹199/mo</button>
+          {!editing ? (
+            <div className="text-[11px] text-[#2c1810] mt-2 space-y-0.5">
+              <div>Age: {userProfile?.age || <span className="italic text-[#5a3a20]">not set</span>}</div>
+              <div>Gender: {userProfile?.gender || <span className="italic text-[#5a3a20]">not set</span>}</div>
+              <div>Location: {userProfile?.location || <span className="italic text-[#5a3a20]">not set</span>}</div>
+            </div>
+          ) : (
+            <div className="space-y-2 mt-2">
+              <input value={age} inputMode="numeric" onChange={(e) => setAge(e.target.value.replace(/\D/g, "").slice(0, 3))}
+                placeholder="Age" className="input-pill w-full text-sm" />
+              <select value={gender} onChange={(e) => setGender(e.target.value)} className="input-pill w-full text-sm">
+                <option value="">Gender</option>
+                <option>Male</option><option>Female</option><option>Non-binary</option><option>Prefer not to say</option>
+              </select>
+              <input value={location} onChange={(e) => setLocation(e.target.value)}
+                placeholder="City" className="input-pill w-full text-sm" />
+              <button onClick={save} className="btn-copper w-full py-1.5 text-[11px]">Save</button>
+            </div>
+          )}
         </div>
       </div>
 
       <div className="flex-1" />
-      <BottomNav vault={vaultedTasks?.length || 0} onNav={onNav} active={13} />
+      <BottomNav onNav={onNav} active={13} />
     </div>
   );
 }
