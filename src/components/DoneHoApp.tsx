@@ -323,8 +323,45 @@ export default function DoneHoApp() {
   const [refinementSeen, setRefinementSeen] = useState(false);
   const [refinementNotes, setRefinementNotes] = useState<string[]>([]);
   const [regenTick, setRegenTick] = useState(0); // bumps to force blueprint reshuffle animation
+  const [hydrated, setHydrated] = useState(false);
 
-  const goNext = (n: number) => { setScreen(n); window.scrollTo(0, 0); };
+  // Load persisted snapshot — if user already committed a Blueprint, land straight on the Dashboard.
+  useEffect(() => {
+    try {
+      const raw = typeof window !== "undefined" ? window.localStorage.getItem("doneho_snapshot_v1") : null;
+      if (raw) {
+        const s = JSON.parse(raw);
+        if (s?.committed) {
+          setUsername(s.username ?? "");
+          setProfession(s.profession ?? "");
+          setSelectedGoals(s.selectedGoals ?? []);
+          setAllGoals(s.allGoals ?? DEFAULT_GOALS);
+          setGoalSliders(s.goalSliders ?? {});
+          setTotalHoursPerDay(s.totalHoursPerDay ?? 5);
+          setTasksPerGoal(s.tasksPerGoal ?? {});
+          setUserProfile(s.userProfile ?? {});
+          setScreen(8);
+        }
+      }
+    } catch {}
+    setHydrated(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Persist snapshot once the user has reached the Dashboard (Blueprint committed).
+  useEffect(() => {
+    if (!hydrated) return;
+    if (screen < 8) return;
+    try {
+      window.localStorage.setItem("doneho_snapshot_v1", JSON.stringify({
+        committed: true,
+        username, profession, selectedGoals, allGoals, goalSliders,
+        totalHoursPerDay, tasksPerGoal, userProfile,
+      }));
+    } catch {}
+  }, [hydrated, screen, username, profession, selectedGoals, allGoals, goalSliders, totalHoursPerDay, tasksPerGoal, userProfile]);
+
+  const goNext = (n: number) => { setScreen(n); if (typeof window !== "undefined") window.scrollTo(0, 0); };
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center" style={{ background: "#1a1410" }}>
