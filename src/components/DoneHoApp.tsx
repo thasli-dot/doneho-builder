@@ -489,7 +489,13 @@ function Screen1({ onJoin, onLogin }: { onJoin: (u: string) => void; onLogin: ()
       <div className="mt-4"><BigGear size={72} spin /></div>
       <Logo size={36} />
       <p className="text-[11px] italic text-[#5a3a20] mt-1">Better Days for the Best</p>
-      <h2 className="font-serif-d text-[22px] font-bold text-[#2c1810] mt-6">Join DoneHo</h2>
+      <p className="text-[12px] font-semibold text-[#2c1810] mt-2 text-center">Plans that bend so you don't break.</p>
+      <p className="text-[10.5px] text-[#5a3a20] mt-3 text-center leading-snug px-2">
+        Life doesn't ask permission before it gets messy. DoneHo catches it quietly and keeps you moving — your week, shaped around real life, not the other way around.
+        <br />
+        <span className="italic">No pressure. No restarts. Just forward, at your pace.</span>
+      </p>
+      <h2 className="font-serif-d text-[20px] font-bold text-[#2c1810] mt-4">Join DoneHo</h2>
 
       <div className="w-full space-y-3 mt-4">
         <div className="input-pill flex items-center gap-2"><span>✉️</span>
