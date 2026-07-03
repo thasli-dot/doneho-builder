@@ -1,7 +1,35 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, Component, type ReactNode } from "react";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
 import { chatWithAether, getAetherInsight, getDayBoosters, getOpportunityMap, getSmartSpend } from "@/lib/aether.functions";
+
+// Screen-level safety net — if any screen throws, show a small retry card
+// instead of bubbling to the root "This page didn't load" boundary.
+class ScreenBoundary extends Component<{ onReset: () => void; children: ReactNode }, { err: Error | null }> {
+  state = { err: null as Error | null };
+  static getDerivedStateFromError(err: Error) { return { err }; }
+  componentDidCatch(err: Error) { console.error("Screen render error:", err); }
+  render() {
+    if (this.state.err) {
+      return (
+        <div className="p-6 flex flex-col items-center justify-center min-h-full text-center">
+          <div className="text-3xl">⚙️</div>
+          <h3 className="font-serif-d text-[16px] font-bold text-[#2c1810] mt-2">Aether is recalibrating</h3>
+          <p className="text-[11px] text-[#5a3a20] mt-1 max-w-[260px]">
+            Something tripped a gear on this screen. Your progress is safe — tap below to keep going.
+          </p>
+          <button
+            className="btn-copper mt-4 px-4 py-2 text-xs"
+            onClick={() => { this.setState({ err: null }); this.props.onReset(); }}
+          >
+            Try again
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 
 // ============ TYPES ============
