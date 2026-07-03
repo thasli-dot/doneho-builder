@@ -516,8 +516,13 @@ function Screen2({ onVerified, onSignup }: { onVerified: () => void; onSignup: (
 function Screen3Chat({ seedName, onDone }: { seedName?: string; onDone: (name: string, prof: string) => void }) {
   const [input, setInput] = useState("");
   const [thinking, setThinking] = useState(false);
+  const [showSplash, setShowSplash] = useState(true);
   const inputRef = useRef<HTMLInputElement>(null);
-  useEffect(() => { inputRef.current?.focus(); }, []);
+  useEffect(() => {
+    const t = setTimeout(() => { setShowSplash(false); }, 1800);
+    return () => clearTimeout(t);
+  }, []);
+  useEffect(() => { if (!showSplash) inputRef.current?.focus(); }, [showSplash]);
 
   const submit = () => {
     const raw = input.trim();
