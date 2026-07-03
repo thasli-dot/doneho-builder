@@ -547,8 +547,20 @@ function Screen3Chat({ seedName, onDone }: { seedName?: string; onDone: (name: s
     setTimeout(() => onDone(name.replace(/[^a-zA-Z\- ]/g, "").trim() || "Friend", prof.trim()), 700);
   };
 
+  if (showSplash) {
+    return (
+      <div className="p-6 flex flex-col items-center justify-center min-h-full fade-in">
+        <div className="mb-2"><BigGear size={96} spin /></div>
+        <Logo size={44} />
+        <p className="text-[13px] italic text-[#5a3a20] mt-3">Better Days for the Best</p>
+        <div className="mt-6 text-[10px] text-[#5a3a20]">Warming the gears…</div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-5 flex flex-col min-h-full">
+
       <Logo size={30} />
       <div className="mt-6 flex items-start gap-2 fade-in">
         <Aether size={42} />
