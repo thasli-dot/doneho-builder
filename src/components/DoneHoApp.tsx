@@ -905,13 +905,13 @@ function Screen6({ username, selectedGoals, goalSliders, totalHoursPerDay, setTo
   };
 
   const filledCards = orderedGoals.filter((g: string) =>
-    (tasksPerGoal[g] ?? []).filter((t: string) => t.trim()).length >= 2).length;
+    (tasksPerGoal[g] ?? []).filter((t: string) => t.trim()).length >= 1).length;
   const pct = orderedGoals.length === 0 ? 0 : Math.round((filledCards / orderedGoals.length) * 100);
 
   const aetherMsg =
-    pct === 0 ? `Let's start ${username}. Add a couple of tasks per goal.` :
+    pct === 0 ? `Let's start ${username}. Add a task for each goal.` :
     pct < 50 ? "Nice — every task helps me protect your week." :
-    pct < 100 ? "Almost there. A couple more and I can Aetherize." :
+    pct < 100 ? "Almost there. One task per goal is enough." :
     `Ready ${username}! Tap Aetherize.`;
 
   // Slider position → filled band styling
