@@ -1,7 +1,35 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, Component, type ReactNode } from "react";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
 import { chatWithAether, getAetherInsight, getDayBoosters, getOpportunityMap, getSmartSpend } from "@/lib/aether.functions";
+
+// Screen-level safety net — if any screen throws, show a small retry card
+// instead of bubbling to the root "This page didn't load" boundary.
+class ScreenBoundary extends Component<{ onReset: () => void; children: ReactNode }, { err: Error | null }> {
+  state = { err: null as Error | null };
+  static getDerivedStateFromError(err: Error) { return { err }; }
+  componentDidCatch(err: Error) { console.error("Screen render error:", err); }
+  render() {
+    if (this.state.err) {
+      return (
+        <div className="p-6 flex flex-col items-center justify-center min-h-full text-center">
+          <div className="text-3xl">⚙️</div>
+          <h3 className="font-serif-d text-[16px] font-bold text-[#2c1810] mt-2">Aether is recalibrating</h3>
+          <p className="text-[11px] text-[#5a3a20] mt-1 max-w-[260px]">
+            Something tripped a gear on this screen. Your progress is safe — tap below to keep going.
+          </p>
+          <button
+            className="btn-copper mt-4 px-4 py-2 text-xs"
+            onClick={() => { this.setState({ err: null }); this.props.onReset(); }}
+          >
+            Try again
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 
 // ============ TYPES ============
@@ -52,14 +80,79 @@ const GOAL_ICONS: Record<string, string> = {
   "Spiritual and Mindfulness": "🕯️",
 };
 
-// Placeholder milestone generator (mock — will be swapped for backend later)
+// Placeholder milestone generator (mock — will be swapped for backend later).
+// Keyword-based so cards feel specific to the task, not generic filler.
 function mockMilestones(task: string): string[] {
-  const t = task.trim();
-  if (!t) return [];
+  const raw = task.trim();
+  if (!raw) return [];
+  const t = raw.toLowerCase();
+  const has = (...words: string[]) => words.some((w) => t.includes(w));
+
+  if (has("learn", "study", "course", "python", "coding", "language", "spanish", "french"))
+    return [
+      `Mon: 25-min intro session on ${raw}`,
+      `Wed: hands-on exercise + short notes`,
+      `Sun: 15-min recap and pick next micro-topic`,
+    ];
+  if (has("read", "book", "article"))
+    return [
+      `Split ${raw} into 3 sittings (~20 pages each)`,
+      `Mid-week: capture 3 highlights + one question`,
+      `Weekend: 10-min reflection, decide next read`,
+    ];
+  if (has("workout", "gym", "run", "cardio", "strength", "yoga", "stretch", "walk", "cycle", "swim"))
+    return [
+      `Mon / Wed / Fri: 30-min ${raw} block`,
+      `Tue or Thu: light mobility + hydration check`,
+      `Sun: 10-min review — reps, RPE, one tweak`,
+    ];
+  if (has("meditat", "mindful", "breath", "journal", "gratitude", "pray"))
+    return [
+      `Daily: 8-min ${raw} at wake or wind-down`,
+      `Mid-week: 2-line reflection on what shifted`,
+      `Sun: pick one intention for next week`,
+    ];
+  if (has("cook", "recipe", "meal", "diet", "grocer"))
+    return [
+      `Sun: plan 3 ${raw} + one grocery list`,
+      `Tue: prep one base (grain / protein / veg)`,
+      `Fri: try one new twist, note the winner`,
+    ];
+  if (has("save", "budget", "invest", "finance", "expense", "money"))
+    return [
+      `Mon: 15-min sweep of last week's spend`,
+      `Wed: move fixed amount to ${raw} bucket`,
+      `Sun: 10-min review, adjust next week's cap`,
+    ];
+  if (has("write", "blog", "essay", "draft", "portfolio"))
+    return [
+      `Mon: outline 3 bullets for ${raw}`,
+      `Wed: 40-min focused draft block`,
+      `Sat: edit pass + share with one person`,
+    ];
+  if (has("clean", "declutter", "organize", "laundry", "kitchen", "home"))
+    return [
+      `Split ${raw} into 3 zones over the week`,
+      `Mid-week: 20-min reset on the busiest zone`,
+      `Sun: quick sweep + restock any essentials`,
+    ];
+  if (has("call", "friend", "family", "date", "partner", "social"))
+    return [
+      `Pick 2 people to reach out to for ${raw}`,
+      `Wed: 20-min call or coffee scheduled`,
+      `Sun: send one thoughtful follow-up`,
+    ];
+  if (has("plan", "review", "goal", "roadmap", "strategy"))
+    return [
+      `Mon: 20-min scoping pass on ${raw}`,
+      `Wed: refine top 3 priorities`,
+      `Sun: retro — what moved, what to drop`,
+    ];
+  // Default — still task-specific, not generic filler.
   return [
-    `Kick off — outline first steps for "${t}"`,
-    `Mid-week — one focused block on "${t}"`,
-    `Wrap — quick review and next action`,
+    `Mon: 20-min kick-off block on ${raw}`,
+    `Wed: focused mid-week session, 30 min`,
+    `Sun: 10-min review + one small next step`,
   ];
 }
 
@@ -240,6 +333,7 @@ export default function DoneHoApp() {
         style={{ width: 375, height: 812, boxShadow: "0 30px 80px rgba(0,0,0,0.6), 0 0 0 1px #6b3f1a" }}
       >
         <div key={screen} className="fade-in w-full h-full overflow-y-auto thin-scroll">
+          <ScreenBoundary onReset={() => setScreen(8)}>
           {screen === 1 && <Screen1 onJoin={(u) => { setUsername(u); goNext(3); }} onLogin={() => goNext(2)} />}
           {screen === 2 && <Screen2 onVerified={() => goNext(3)} onSignup={() => goNext(1)} />}
           {screen === 3 && (
@@ -367,6 +461,7 @@ export default function DoneHoApp() {
               onNav={(s: number) => goNext(s)}
             />
           )}
+          </ScreenBoundary>
         </div>
       </div>
     </div>
@@ -451,8 +546,13 @@ function Screen2({ onVerified, onSignup }: { onVerified: () => void; onSignup: (
 function Screen3Chat({ seedName, onDone }: { seedName?: string; onDone: (name: string, prof: string) => void }) {
   const [input, setInput] = useState("");
   const [thinking, setThinking] = useState(false);
+  const [showSplash, setShowSplash] = useState(true);
   const inputRef = useRef<HTMLInputElement>(null);
-  useEffect(() => { inputRef.current?.focus(); }, []);
+  useEffect(() => {
+    const t = setTimeout(() => { setShowSplash(false); }, 1800);
+    return () => clearTimeout(t);
+  }, []);
+  useEffect(() => { if (!showSplash) inputRef.current?.focus(); }, [showSplash]);
 
   const submit = () => {
     const raw = input.trim();
@@ -477,8 +577,20 @@ function Screen3Chat({ seedName, onDone }: { seedName?: string; onDone: (name: s
     setTimeout(() => onDone(name.replace(/[^a-zA-Z\- ]/g, "").trim() || "Friend", prof.trim()), 700);
   };
 
+  if (showSplash) {
+    return (
+      <div className="p-6 flex flex-col items-center justify-center min-h-full fade-in">
+        <div className="mb-2"><BigGear size={96} spin /></div>
+        <Logo size={44} />
+        <p className="text-[13px] italic text-[#5a3a20] mt-3">Better Days for the Best</p>
+        <div className="mt-6 text-[10px] text-[#5a3a20]">Warming the gears…</div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-5 flex flex-col min-h-full">
+
       <Logo size={30} />
       <div className="mt-6 flex items-start gap-2 fade-in">
         <Aether size={42} />
@@ -884,19 +996,75 @@ function Screen6({ username, selectedGoals, goalSliders, totalHoursPerDay, setTo
 }
 
 // ============ SCREEN 6.5 — GOAL CLARIFICATION ============
-function collectVagueTasks(selectedGoals: string[], tasksPerGoal: Record<string, string[]>) {
-  const vague: { goal: string; index: number; text: string }[] = [];
+// Only flag tasks that are genuinely ambiguous. Self-evident single-word tasks
+// like "Meditation", "Workout", or "Cooking" should never trigger a question.
+type VagueTask = { goal: string; index: number; text: string; question: string };
+
+const SELF_EVIDENT = new Set([
+  "meditation","meditate","workout","exercise","yoga","stretch","stretching",
+  "cooking","cook","reading","journal","journaling","prayer","walk","walking",
+  "running","cycling","swimming","cleaning","laundry","groceries","sleep",
+  "nap","hydration","breakfast","lunch","dinner",
+]);
+
+const AMBIGUOUS_SINGLES = new Set([
+  "learn","study","improve","practice","work","fitness","health","finance",
+  "money","goals","review","plan","reading","project",
+]);
+
+function clarifyQuestionFor(raw: string): string | null {
+  const t = raw.trim();
+  if (!t) return null;
+  const lower = t.toLowerCase();
+  const words = lower.split(/\s+/);
+
+  // Self-evident single-word or short tasks — never ask.
+  if (words.length === 1 && SELF_EVIDENT.has(lower)) return null;
+  if (words.length <= 2 && words.every((w) => SELF_EVIDENT.has(w))) return null;
+
+  // Only these categories trigger a tailored ask when short/underspecified.
+  const isShort = words.length <= 2;
+  const has = (...arr: string[]) => arr.some((w) => lower.includes(w));
+
+  if (has("learn", "study", "master") && isShort)
+    return `For "${t}" — starting from scratch, or brushing up?`;
+  if (has("workout", "fitness", "gym", "train") && isShort)
+    return `For "${t}" — which type: cardio, strength, or mobility?`;
+  if (has("read", "book") && isShort)
+    return `For "${t}" — fiction, non-fiction, or a specific title in mind?`;
+  if (has("write", "blog", "draft", "essay") && isShort)
+    return `For "${t}" — long-form pieces or short daily entries?`;
+  if (has("save", "budget", "invest", "money", "finance") && isShort)
+    return `For "${t}" — saving, budgeting, or investing focus?`;
+  if (has("cook", "recipe", "meal") && isShort)
+    return `For "${t}" — any cuisine or dietary preference to focus on?`;
+  if (has("practice") && isShort)
+    return `For "${t}" — roughly how many minutes a day feels right?`;
+  if (has("improve", "work on", "get better") && isShort)
+    return `For "${t}" — what would "better" look like this week?`;
+
+  // Truly single ambiguous word ("Learn", "Study", "Improve") with no object.
+  if (words.length === 1 && AMBIGUOUS_SINGLES.has(lower))
+    return `"${t}" is a bit broad — what specifically this week?`;
+
+  return null;
+}
+
+function collectVagueTasks(selectedGoals: string[], tasksPerGoal: Record<string, string[]>): VagueTask[] {
+  const vague: VagueTask[] = [];
   selectedGoals.forEach((g) => {
     (tasksPerGoal[g] ?? []).forEach((t, i) => {
       const clean = t.trim();
       if (!clean) return;
-      if (clean.split(/\s+/).length < 3) vague.push({ goal: g, index: i, text: clean });
+      const q = clarifyQuestionFor(clean);
+      if (q) vague.push({ goal: g, index: i, text: clean, question: q });
     });
   });
   return vague;
 }
 
 function ScreenClarify({ username, selectedGoals, tasksPerGoal, setTasksPerGoal, onDone }: any) {
+  void username;
   const vague = useMemo(() => collectVagueTasks(selectedGoals, tasksPerGoal), [selectedGoals, tasksPerGoal]);
   const [idx, setIdx] = useState(0);
   const [answer, setAnswer] = useState("");
@@ -905,11 +1073,9 @@ function ScreenClarify({ username, selectedGoals, tasksPerGoal, setTasksPerGoal,
 
   if (vague.length === 0) return null;
   const current = vague[idx];
-  const clarifyQuestion = `For "${current.text}" — starting from scratch, or brushing up?`;
 
   const submit = () => {
     if (answer.trim()) {
-      // Append the user's answer to the task text to enrich it — placeholder logic
       const arr = [...(tasksPerGoal[current.goal] ?? [])];
       arr[current.index] = `${current.text} (${answer.trim()})`;
       setTasksPerGoal({ ...tasksPerGoal, [current.goal]: arr });
@@ -928,7 +1094,7 @@ function ScreenClarify({ username, selectedGoals, tasksPerGoal, setTasksPerGoal,
       <div className="mt-4 flex items-start gap-2 fade-in" key={idx}>
         <Aether size={38} />
         <div className="bg-[#e8d5a3] border-2 border-[#b87333] rounded-2xl rounded-tl-sm p-3 text-[12px] text-[#2c1810]">
-          {clarifyQuestion}
+          {current.question}
         </div>
       </div>
 
