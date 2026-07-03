@@ -323,8 +323,45 @@ export default function DoneHoApp() {
   const [refinementSeen, setRefinementSeen] = useState(false);
   const [refinementNotes, setRefinementNotes] = useState<string[]>([]);
   const [regenTick, setRegenTick] = useState(0); // bumps to force blueprint reshuffle animation
+  const [hydrated, setHydrated] = useState(false);
 
-  const goNext = (n: number) => { setScreen(n); window.scrollTo(0, 0); };
+  // Load persisted snapshot — if user already committed a Blueprint, land straight on the Dashboard.
+  useEffect(() => {
+    try {
+      const raw = typeof window !== "undefined" ? window.localStorage.getItem("doneho_snapshot_v1") : null;
+      if (raw) {
+        const s = JSON.parse(raw);
+        if (s?.committed) {
+          setUsername(s.username ?? "");
+          setProfession(s.profession ?? "");
+          setSelectedGoals(s.selectedGoals ?? []);
+          setAllGoals(s.allGoals ?? DEFAULT_GOALS);
+          setGoalSliders(s.goalSliders ?? {});
+          setTotalHoursPerDay(s.totalHoursPerDay ?? 5);
+          setTasksPerGoal(s.tasksPerGoal ?? {});
+          setUserProfile(s.userProfile ?? {});
+          setScreen(8);
+        }
+      }
+    } catch {}
+    setHydrated(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Persist snapshot once the user has reached the Dashboard (Blueprint committed).
+  useEffect(() => {
+    if (!hydrated) return;
+    if (screen < 8) return;
+    try {
+      window.localStorage.setItem("doneho_snapshot_v1", JSON.stringify({
+        committed: true,
+        username, profession, selectedGoals, allGoals, goalSliders,
+        totalHoursPerDay, tasksPerGoal, userProfile,
+      }));
+    } catch {}
+  }, [hydrated, screen, username, profession, selectedGoals, allGoals, goalSliders, totalHoursPerDay, tasksPerGoal, userProfile]);
+
+  const goNext = (n: number) => { setScreen(n); if (typeof window !== "undefined") window.scrollTo(0, 0); };
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center" style={{ background: "#1a1410" }}>
@@ -489,7 +526,13 @@ function Screen1({ onJoin, onLogin }: { onJoin: (u: string) => void; onLogin: ()
       <div className="mt-4"><BigGear size={72} spin /></div>
       <Logo size={36} />
       <p className="text-[11px] italic text-[#5a3a20] mt-1">Better Days for the Best</p>
-      <h2 className="font-serif-d text-[22px] font-bold text-[#2c1810] mt-6">Join DoneHo</h2>
+      <p className="text-[12px] font-semibold text-[#2c1810] mt-2 text-center">Plans that bend so you don't break.</p>
+      <p className="text-[10.5px] text-[#5a3a20] mt-3 text-center leading-snug px-2">
+        Life doesn't ask permission before it gets messy. DoneHo catches it quietly and keeps you moving — your week, shaped around real life, not the other way around.
+        <br />
+        <span className="italic">No pressure. No restarts. Just forward, at your pace.</span>
+      </p>
+      <h2 className="font-serif-d text-[20px] font-bold text-[#2c1810] mt-4">Join DoneHo</h2>
 
       <div className="w-full space-y-3 mt-4">
         <div className="input-pill flex items-center gap-2"><span>✉️</span>
@@ -899,13 +942,13 @@ function Screen6({ username, selectedGoals, goalSliders, totalHoursPerDay, setTo
   };
 
   const filledCards = orderedGoals.filter((g: string) =>
-    (tasksPerGoal[g] ?? []).filter((t: string) => t.trim()).length >= 2).length;
+    (tasksPerGoal[g] ?? []).filter((t: string) => t.trim()).length >= 1).length;
   const pct = orderedGoals.length === 0 ? 0 : Math.round((filledCards / orderedGoals.length) * 100);
 
   const aetherMsg =
-    pct === 0 ? `Let's start ${username}. Add a couple of tasks per goal.` :
+    pct === 0 ? `Let's start ${username}. Add a task for each goal.` :
     pct < 50 ? "Nice — every task helps me protect your week." :
-    pct < 100 ? "Almost there. A couple more and I can Aetherize." :
+    pct < 100 ? "Almost there. One task per goal is enough." :
     `Ready ${username}! Tap Aetherize.`;
 
   // Slider position → filled band styling
@@ -1292,7 +1335,7 @@ function Screen8(props: any) {
             value={disruption}
             onChange={(e) => setDisruption(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && submitDisruption()}
-            placeholder="Something happened? Tell me."
+            placeholder="Something changed today — good or bad? Tell Aether."
             className="flex-1 bg-[#e8d5a3] text-[#2c1810] rounded-full px-3 py-1 text-[11px] outline-none border border-[#b87333]"
           />
           <button onClick={submitDisruption} className="btn-copper px-3 py-1 text-[10px]">Send</button>
