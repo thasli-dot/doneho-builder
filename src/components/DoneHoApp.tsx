@@ -333,6 +333,7 @@ export default function DoneHoApp() {
         style={{ width: 375, height: 812, boxShadow: "0 30px 80px rgba(0,0,0,0.6), 0 0 0 1px #6b3f1a" }}
       >
         <div key={screen} className="fade-in w-full h-full overflow-y-auto thin-scroll">
+          <ScreenBoundary onReset={() => setScreen(8)}>
           {screen === 1 && <Screen1 onJoin={(u) => { setUsername(u); goNext(3); }} onLogin={() => goNext(2)} />}
           {screen === 2 && <Screen2 onVerified={() => goNext(3)} onSignup={() => goNext(1)} />}
           {screen === 3 && (
