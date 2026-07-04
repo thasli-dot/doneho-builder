@@ -1316,7 +1316,7 @@ function computeDistribution(
     weighted[g] = w;
     sum += w;
   });
-  const result: { goal: string; hours: number; weighted: number; tasks: { name: string; minutes: number; milestones: string[] }[] }[] = [];
+  const result: { goal: string; hours: number; weighted: number; tasks: { name: string; minutes: number; milestones: MilestoneItem[] }[] }[] = [];
   selected.forEach((g) => {
     let hours = sum > 0 ? (weighted[g] / sum) * available : 0;
     hours = Math.max(0.5, Math.round(hours * 2) / 2);
