@@ -1128,26 +1128,53 @@ function collectVagueTasks(selectedGoals: string[], tasksPerGoal: Record<string,
   return vague;
 }
 
-function ScreenClarify({ username, selectedGoals, tasksPerGoal, setTasksPerGoal, onDone }: any) {
+function ScreenClarify({ username, selectedGoals, tasksPerGoal, setTasksPerGoal, backendClarifications, onDone }: any) {
   void username;
-  const vague = useMemo(() => collectVagueTasks(selectedGoals, tasksPerGoal), [selectedGoals, tasksPerGoal]);
+
+  // Prefer backend-provided clarifications when present. Fall back to the
+  // local heuristic so the screen still works if the /goals response was empty.
+  const backend: { task_id: string; task_title: string; question: string }[] = backendClarifications ?? [];
+  const useBackend = backend.length > 0;
+
+  const localVague = useMemo(
+    () => (useBackend ? [] : collectVagueTasks(selectedGoals, tasksPerGoal)),
+    [selectedGoals, tasksPerGoal, useBackend]
+  );
+
+  const items = useBackend
+    ? backend.map((b) => ({ id: b.task_id, text: b.task_title, question: b.question, goal: "", index: -1 }))
+    : localVague.map((v) => ({ id: `${v.goal}:${v.index}`, text: v.text, question: v.question, goal: v.goal, index: v.index }));
+
   const [idx, setIdx] = useState(0);
   const [answer, setAnswer] = useState("");
+  const [collected, setCollected] = useState<Record<string, string>>({});
 
-  useEffect(() => { if (vague.length === 0) onDone(); }, []); // eslint-disable-line
+  useEffect(() => { if (items.length === 0) onDone(useBackend ? {} : undefined); }, []); // eslint-disable-line
 
-  if (vague.length === 0) return null;
-  const current = vague[idx];
+  if (items.length === 0) return null;
+  const current = items[idx];
+
+  const advance = (savedAnswers: Record<string, string>) => {
+    setAnswer("");
+    if (idx + 1 >= items.length) onDone(useBackend ? savedAnswers : undefined);
+    else setIdx(idx + 1);
+  };
 
   const submit = () => {
-    if (answer.trim()) {
-      const arr = [...(tasksPerGoal[current.goal] ?? [])];
-      arr[current.index] = `${current.text} (${answer.trim()})`;
-      setTasksPerGoal({ ...tasksPerGoal, [current.goal]: arr });
+    const clean = answer.trim();
+    let nextCollected = collected;
+    if (clean) {
+      if (useBackend) {
+        nextCollected = { ...collected, [current.id]: clean };
+        setCollected(nextCollected);
+      } else if (current.index >= 0) {
+        // Local heuristic path: fold the answer into the task text.
+        const arr = [...(tasksPerGoal[current.goal] ?? [])];
+        arr[current.index] = `${current.text} (${clean})`;
+        setTasksPerGoal({ ...tasksPerGoal, [current.goal]: arr });
+      }
     }
-    setAnswer("");
-    if (idx + 1 >= vague.length) onDone();
-    else setIdx(idx + 1);
+    advance(nextCollected);
   };
 
   return (
@@ -1175,13 +1202,13 @@ function ScreenClarify({ username, selectedGoals, tasksPerGoal, setTasksPerGoal,
           />
         </div>
         <div className="flex items-center gap-2 mt-3">
-          <button onClick={() => { setAnswer(""); if (idx + 1 >= vague.length) onDone(); else setIdx(idx + 1); }}
+          <button onClick={() => advance(collected)}
             className="w-1/3 py-2 rounded-full border-2 border-[#b87333] text-[#2c1810] bg-[#e8d5a3] text-xs">
             Skip
           </button>
           <button onClick={submit} className="btn-copper flex-1 py-2 text-sm">Next →</button>
         </div>
-        <div className="text-center text-[9px] text-[#5a3a20] mt-2">Question {idx + 1} of {vague.length}</div>
+        <div className="text-center text-[9px] text-[#5a3a20] mt-2">Question {idx + 1} of {items.length}</div>
       </div>
     </div>
   );
