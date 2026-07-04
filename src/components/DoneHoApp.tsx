@@ -1313,14 +1313,18 @@ function Screen8(props: any) {
     totalHoursPerDay, vaultedTasks, onNav, userProfile, aetherInsights, setAetherInsights,
     panelCache, setPanelCache, refinementSeen, setRefinementSeen, refinementNotes, setRefinementNotes,
     regenTick, setRegenTick,
+    sessionId, snapshot, setSnapshot, runApi, callSubmitPass2, callCommit,
   } = props;
 
   const dist = useMemo(
-    () => computeDistribution(selectedGoals, goalSliders, totalHoursPerDay || 5, tasksPerGoal),
+    () => computeDistribution(selectedGoals, goalSliders, totalHoursPerDay || 5, tasksPerGoal, snapshot?.blueprint),
     // regenTick invalidates memo so the visual reshuffle animation re-runs
-    [selectedGoals, goalSliders, totalHoursPerDay, tasksPerGoal, regenTick]
+    [selectedGoals, goalSliders, totalHoursPerDay, tasksPerGoal, regenTick, snapshot]
   );
-  const lifeLoad = useMemo(() => computeLifeLoad(selectedGoals, goalSliders), [selectedGoals, goalSliders]);
+  const lifeLoad = useMemo(
+    () => (typeof snapshot?.lifeload === "number" ? snapshot.lifeload : computeLifeLoad(selectedGoals, goalSliders)),
+    [snapshot, selectedGoals, goalSliders]
+  );
 
   const [panel, setPanel] = useState<string | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
