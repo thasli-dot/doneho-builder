@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo, Component, type ReactNode } from 
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
 import { chatWithAether, getAetherInsight, getDayBoosters, getOpportunityMap, getSmartSpend } from "@/lib/aether.functions";
+import { startSession, submitGoals, submitClarifications, submitPass2, commitBlueprint } from "@/lib/doneho-api.functions";
 
 // Screen-level safety net — if any screen throws, show a small retry card
 // instead of bubbling to the root "This page didn't load" boundary.
