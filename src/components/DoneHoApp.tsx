@@ -432,7 +432,7 @@ export default function DoneHoApp() {
               tasksPerGoal={tasksPerGoal}
               setTasksPerGoal={setTasksPerGoal}
               backendClarifications={backendClarifications}
-              onDone={async (answers) => {
+              onDone={async (answers: Record<string, string> | undefined) => {
                 if (backendClarifications.length > 0 && sessionId && answers) {
                   await runApi(() =>
                     callSubmitClarifications({ data: { session_id: sessionId, answers } })
