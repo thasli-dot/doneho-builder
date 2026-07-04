@@ -1488,6 +1488,17 @@ function Screen8(props: any) {
           onClose={() => { setShowRefinement(false); setRefinementSeen(true); }}
           notes={refinementNotes}
           setNotes={setRefinementNotes}
+          onSaved={async (payload: any) => {
+            if (!sessionId || !runApi) return;
+            const pass2 = await runApi(() =>
+              callSubmitPass2({ data: { session_id: sessionId, ...payload } })
+            );
+            if (pass2) setSnapshot(pass2);
+            const committed = await runApi(() =>
+              callCommit({ data: { session_id: sessionId } })
+            );
+            if (committed) setSnapshot(committed);
+          }}
         />
       )}
 
