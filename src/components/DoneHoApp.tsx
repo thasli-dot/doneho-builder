@@ -343,7 +343,17 @@ export default function DoneHoApp() {
           {screen === 3 && (
             <Screen3Chat
               seedName={username}
-              onDone={(name, prof) => { setUsername(name); setProfession(prof); goNext(4); }}
+              onDone={async (name, prof) => {
+                setUsername(name);
+                setProfession(prof);
+                const res = await runApi(() =>
+                  callStartSession({ data: { name, profession: prof } })
+                );
+                if (res?.session_id) {
+                  setSessionId(res.session_id);
+                  goNext(4);
+                }
+              }}
             />
           )}
           {screen === 4 && (
@@ -388,11 +398,28 @@ export default function DoneHoApp() {
               setTotalHoursPerDay={setTotalHoursPerDay}
               tasksPerGoal={tasksPerGoal}
               setTasksPerGoal={setTasksPerGoal}
-              onAetherize={() => {
-                // Skip clarification silently if no vague tasks
-                const vague = collectVagueTasks(selectedGoals, tasksPerGoal);
-                if (vague.length === 0) goNext(7);
-                else goNext(65);
+              onAetherize={async () => {
+                if (!sessionId) { setApiError("Session missing — please restart."); return; }
+                // Build the backend payload from local onboarding state.
+                const goalsPayload = selectedGoals.map((g) => {
+                  const s = goalSliders[g] ?? GOAL_DEFAULTS[g] ?? { volatility: 5, traffic: 5 };
+                  const tasks = (tasksPerGoal[g] ?? [])
+                    .map((t) => t.trim())
+                    .filter(Boolean)
+                    .map((title) => ({ title, is_flexible: true }));
+                  return { category: g, traffic: s.traffic, volatility: s.volatility, tasks };
+                });
+                const res = await runApi(() =>
+                  callSubmitGoals({ data: { session_id: sessionId, goals: goalsPayload } })
+                );
+                if (!res) return;
+                if (res.pending_clarifications && res.pending_clarifications.length > 0) {
+                  setBackendClarifications(res.pending_clarifications);
+                  goNext(65);
+                } else {
+                  setBackendClarifications([]);
+                  goNext(7);
+                }
               }}
               aetherInsights={aetherInsights}
               setAetherInsights={setAetherInsights}
@@ -404,7 +431,15 @@ export default function DoneHoApp() {
               selectedGoals={selectedGoals}
               tasksPerGoal={tasksPerGoal}
               setTasksPerGoal={setTasksPerGoal}
-              onDone={() => goNext(7)}
+              backendClarifications={backendClarifications}
+              onDone={async (answers) => {
+                if (backendClarifications.length > 0 && sessionId && answers) {
+                  await runApi(() =>
+                    callSubmitClarifications({ data: { session_id: sessionId, answers } })
+                  );
+                }
+                goNext(7);
+              }}
             />
           )}
           {screen === 7 && <Screen7 username={username} onContinue={() => goNext(8)} />}
