@@ -81,18 +81,42 @@ const GOAL_ICONS: Record<string, string> = {
   "Spiritual and Mindfulness": "🕯️",
 };
 
-// Milestone extraction from the backend blueprint. Falls back to an empty
-// list when the backend hasn't attached milestones for a given task yet.
-function milestonesForTask(blueprint: any, goal: string, task: string): string[] {
+// Milestone extraction from the backend blueprint. Supports the real backend
+// shape (a flat `blueprint.milestones` array keyed by task_title/goal_title)
+// as well as older nested placeholders. Returns objects with title, hours,
+// and completed flags so the UI can render checkmarks/strikethroughs.
+export type MilestoneItem = { title: string; hours: number; completed: boolean };
+function milestonesForTask(blueprint: any, goal: string, task: string): MilestoneItem[] {
   if (!blueprint) return [];
   try {
+    // Real backend: flat array of milestone records.
+    if (Array.isArray(blueprint?.milestones)) {
+      return (blueprint.milestones as any[])
+        .filter((m) => {
+          const matchTask = m?.task_title === task || m?.task_id === task;
+          const matchGoal = !goal || !m?.goal_title || m.goal_title === goal;
+          return matchTask && matchGoal;
+        })
+        .map((m) => ({
+          title: String(m?.title ?? ""),
+          hours: Number(m?.expected_hours ?? 0),
+          completed: Boolean(m?.completed),
+        }))
+        .filter((m) => m.title);
+    }
+    // Legacy nested shapes.
     const g = blueprint[goal] ?? blueprint?.goals?.[goal];
     const t = g?.[task] ?? g?.tasks?.[task];
-    if (Array.isArray(t)) return t as string[];
-    if (Array.isArray(t?.milestones)) return t.milestones as string[];
+    const raw = Array.isArray(t) ? t : Array.isArray(t?.milestones) ? t.milestones : [];
+    return (raw as any[]).map((m) =>
+      typeof m === "string"
+        ? { title: m, hours: 0, completed: false }
+        : { title: String(m?.title ?? ""), hours: Number(m?.expected_hours ?? 0), completed: Boolean(m?.completed) }
+    ).filter((m) => m.title);
   } catch {}
   return [];
 }
+
 
 function focusFor(sliders: GoalSliders | undefined) {
   const combined = (sliders?.traffic ?? 5) + (sliders?.volatility ?? 5);
@@ -1292,7 +1316,7 @@ function computeDistribution(
     weighted[g] = w;
     sum += w;
   });
-  const result: { goal: string; hours: number; weighted: number; tasks: { name: string; minutes: number; milestones: string[] }[] }[] = [];
+  const result: { goal: string; hours: number; weighted: number; tasks: { name: string; minutes: number; milestones: MilestoneItem[] }[] }[] = [];
   selected.forEach((g) => {
     let hours = sum > 0 ? (weighted[g] / sum) * available : 0;
     hours = Math.max(0.5, Math.round(hours * 2) / 2);
@@ -1330,6 +1354,9 @@ function Screen8(props: any) {
   const [chatOpen, setChatOpen] = useState(false);
   const [showRefinement, setShowRefinement] = useState(!refinementSeen);
   const [modifyOpen, setModifyOpen] = useState(false);
+  const [expandedTasks, setExpandedTasks] = useState<Record<string, boolean>>({});
+  const toggleTask = (key: string) => setExpandedTasks((p) => ({ ...p, [key]: !p[key] }));
+
 
   // Disruption panel
   const [disruption, setDisruption] = useState("");
@@ -1440,19 +1467,46 @@ function Screen8(props: any) {
                 </div>
                 <div className="mt-2 space-y-1.5">
                   {d.tasks.length === 0 && <div className="text-[9px] italic text-[#e8d5b0]/70">No tasks yet — add some via Modify.</div>}
-                  {d.tasks.map((t, i) => (
-                    <div key={i} className="bg-[#e8d5a3] text-[#2c1810] rounded-lg p-1.5">
-                      <div className="flex justify-between font-semibold text-[10px]">
-                        <span>▸ {t.name}</span>
-                        <span className="text-[#4a7c59]">{t.minutes} min/day</span>
+                  {d.tasks.map((t, i) => {
+                    const key = `${d.goal}::${t.name}`;
+                    const open = !!expandedTasks[key];
+                    return (
+                      <div key={i} className="bg-[#e8d5a3] text-[#2c1810] rounded-lg p-1.5">
+                        <button
+                          type="button"
+                          onClick={() => toggleTask(key)}
+                          className="w-full flex justify-between items-center font-semibold text-[10px] text-left"
+                          aria-expanded={open}
+                        >
+                          <span className="flex items-center gap-1">
+                            <span
+                              className="inline-block transition-transform"
+                              style={{ transform: open ? "rotate(90deg)" : "rotate(0deg)" }}
+                            >▸</span>
+                            {t.name}
+                          </span>
+                          <span className="text-[#4a7c59]">{t.minutes} min/day</span>
+                        </button>
+                        {open && (
+                          <ul className="mt-1 space-y-0.5 pl-4">
+                            {t.milestones.length === 0 && (
+                              <li className="text-[9px] italic text-[#5a3a20]/70">No milestones yet.</li>
+                            )}
+                            {t.milestones.map((m, k) => (
+                              <li
+                                key={k}
+                                className={`text-[9px] flex justify-between gap-2 ${m.completed ? "text-[#5a3a20]/60 line-through" : "text-[#5a3a20]"}`}
+                              >
+                                <span>{m.completed ? "✓" : "•"} {m.title}</span>
+                                {m.hours > 0 && <span className="text-[#4a7c59] shrink-0">{m.hours}h</span>}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
                       </div>
-                      <ul className="mt-1 space-y-0.5 pl-2">
-                        {t.milestones.map((m, k) => (
-                          <li key={k} className="text-[9px] text-[#5a3a20]">• {m}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  ))}
+                    );
+                  })}
+
                 </div>
               </div>
             );
