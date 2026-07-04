@@ -263,6 +263,35 @@ export default function DoneHoApp() {
   const [regenTick, setRegenTick] = useState(0); // bumps to force blueprint reshuffle animation
   const [hydrated, setHydrated] = useState(false);
 
+  // ==== Backend session state (DoneHo API on Render) ====
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [snapshot, setSnapshot] = useState<any>(null);
+  const [backendClarifications, setBackendClarifications] = useState<
+    { task_id: string; task_title: string; question: string }[]
+  >([]);
+  const [apiLoading, setApiLoading] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
+
+  const callStartSession = useServerFn(startSession);
+  const callSubmitGoals = useServerFn(submitGoals);
+  const callSubmitClarifications = useServerFn(submitClarifications);
+  const callSubmitPass2 = useServerFn(submitPass2);
+  const callCommit = useServerFn(commitBlueprint);
+
+  async function runApi<T>(fn: () => Promise<T>): Promise<T | null> {
+    setApiLoading(true);
+    setApiError(null);
+    try {
+      return await fn();
+    } catch (e: any) {
+      console.error(e);
+      setApiError("Something went wrong — try again.");
+      return null;
+    } finally {
+      setApiLoading(false);
+    }
+  }
+
   // Load persisted snapshot — if user already committed a Blueprint, land straight on the Dashboard.
   useEffect(() => {
     try {
