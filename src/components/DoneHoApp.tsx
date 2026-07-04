@@ -1467,19 +1467,46 @@ function Screen8(props: any) {
                 </div>
                 <div className="mt-2 space-y-1.5">
                   {d.tasks.length === 0 && <div className="text-[9px] italic text-[#e8d5b0]/70">No tasks yet — add some via Modify.</div>}
-                  {d.tasks.map((t, i) => (
-                    <div key={i} className="bg-[#e8d5a3] text-[#2c1810] rounded-lg p-1.5">
-                      <div className="flex justify-between font-semibold text-[10px]">
-                        <span>▸ {t.name}</span>
-                        <span className="text-[#4a7c59]">{t.minutes} min/day</span>
+                  {d.tasks.map((t, i) => {
+                    const key = `${d.goal}::${t.name}`;
+                    const open = !!expandedTasks[key];
+                    return (
+                      <div key={i} className="bg-[#e8d5a3] text-[#2c1810] rounded-lg p-1.5">
+                        <button
+                          type="button"
+                          onClick={() => toggleTask(key)}
+                          className="w-full flex justify-between items-center font-semibold text-[10px] text-left"
+                          aria-expanded={open}
+                        >
+                          <span className="flex items-center gap-1">
+                            <span
+                              className="inline-block transition-transform"
+                              style={{ transform: open ? "rotate(90deg)" : "rotate(0deg)" }}
+                            >▸</span>
+                            {t.name}
+                          </span>
+                          <span className="text-[#4a7c59]">{t.minutes} min/day</span>
+                        </button>
+                        {open && (
+                          <ul className="mt-1 space-y-0.5 pl-4">
+                            {t.milestones.length === 0 && (
+                              <li className="text-[9px] italic text-[#5a3a20]/70">No milestones yet.</li>
+                            )}
+                            {t.milestones.map((m, k) => (
+                              <li
+                                key={k}
+                                className={`text-[9px] flex justify-between gap-2 ${m.completed ? "text-[#5a3a20]/60 line-through" : "text-[#5a3a20]"}`}
+                              >
+                                <span>{m.completed ? "✓" : "•"} {m.title}</span>
+                                {m.hours > 0 && <span className="text-[#4a7c59] shrink-0">{m.hours}h</span>}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
                       </div>
-                      <ul className="mt-1 space-y-0.5 pl-2">
-                        {t.milestones.map((m, k) => (
-                          <li key={k} className="text-[9px] text-[#5a3a20]">• {m}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  ))}
+                    );
+                  })}
+
                 </div>
               </div>
             );
