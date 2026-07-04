@@ -1354,6 +1354,9 @@ function Screen8(props: any) {
   const [chatOpen, setChatOpen] = useState(false);
   const [showRefinement, setShowRefinement] = useState(!refinementSeen);
   const [modifyOpen, setModifyOpen] = useState(false);
+  const [expandedTasks, setExpandedTasks] = useState<Record<string, boolean>>({});
+  const toggleTask = (key: string) => setExpandedTasks((p) => ({ ...p, [key]: !p[key] }));
+
 
   // Disruption panel
   const [disruption, setDisruption] = useState("");
