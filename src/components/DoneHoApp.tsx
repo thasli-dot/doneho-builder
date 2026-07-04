@@ -407,7 +407,7 @@ export default function DoneHoApp() {
                     .map((t) => t.trim())
                     .filter(Boolean)
                     .map((title) => ({ title, is_flexible: true }));
-                  return { category: g, traffic: s.traffic, volatility: s.volatility, tasks };
+                  return { category: g, traffic: s.traffic / 10, volatility: s.volatility / 10, tasks };
                 });
                 const res = await runApi(() =>
                   callSubmitGoals({ data: { session_id: sessionId, goals: goalsPayload } })
