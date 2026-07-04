@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useMemo, Component, type ReactNode } from "react";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
-import { chatWithAether, getAetherInsight, getDayBoosters, getOpportunityMap, getSmartSpend } from "@/lib/aether.functions";
-import { startSession, submitGoals, submitClarifications, submitPass2, commitBlueprint } from "@/lib/doneho-api.functions";
+import { chatWithAether, getAetherInsight } from "@/lib/aether.functions";
+import { startSession, submitGoals, submitClarifications, submitPass2, commitBlueprint, reportDisruption, approveDisruption, getDayOutputChecklist, submitDayOutput, triggerLifeHappened, regenerateNudges, chatWithAetherBackend, getAetherTip } from "@/lib/doneho-api.functions";
 
 // Screen-level safety net — if any screen throws, show a small retry card
 // instead of bubbling to the root "This page didn't load" boundary.
@@ -301,6 +301,14 @@ export default function DoneHoApp() {
   const callSubmitClarifications = useServerFn(submitClarifications);
   const callSubmitPass2 = useServerFn(submitPass2);
   const callCommit = useServerFn(commitBlueprint);
+  const callReportDisruption = useServerFn(reportDisruption);
+  const callApproveDisruption = useServerFn(approveDisruption);
+  const callGetChecklist = useServerFn(getDayOutputChecklist);
+  const callSubmitDayOutput = useServerFn(submitDayOutput);
+  const callLifeHappened = useServerFn(triggerLifeHappened);
+  const callRegenerateNudges = useServerFn(regenerateNudges);
+  const callAetherChatBackend = useServerFn(chatWithAetherBackend);
+  const callGetAetherTip = useServerFn(getAetherTip);
 
   async function runApi<T>(fn: () => Promise<T>): Promise<T | null> {
     setApiLoading(true);
@@ -382,7 +390,7 @@ export default function DoneHoApp() {
           )}
           {screen === 4 && (
             <Screen4
-              username={username || "Friend"}
+              username={username}
               allGoals={allGoals}
               setAllGoals={setAllGoals}
               selectedGoals={selectedGoals}
@@ -496,6 +504,11 @@ export default function DoneHoApp() {
               runApi={runApi}
               callSubmitPass2={callSubmitPass2}
               callCommit={callCommit}
+              callReportDisruption={callReportDisruption}
+              callApproveDisruption={callApproveDisruption}
+              callRegenerateNudges={callRegenerateNudges}
+              callAetherChatBackend={callAetherChatBackend}
+              callGetAetherTip={callGetAetherTip}
             />
           )}
           {screen === 12 && (
@@ -517,6 +530,14 @@ export default function DoneHoApp() {
               userProfile={userProfile}
               aetherInsights={aetherInsights}
               setAetherInsights={setAetherInsights}
+              sessionId={sessionId}
+              snapshot={snapshot}
+              setSnapshot={setSnapshot}
+              runApi={runApi}
+              callGetChecklist={callGetChecklist}
+              callSubmitDayOutput={callSubmitDayOutput}
+              callLifeHappened={callLifeHappened}
+              callAetherChatBackend={callAetherChatBackend}
             />
           )}
           {screen === 13 && (
@@ -650,7 +671,7 @@ function Screen3Chat({ seedName, onDone }: { seedName?: string; onDone: (name: s
     const cleaned = raw.replace(/^(hi|hello|hey|i'?m|i am|my name is|call me)\s+/i, "");
     let name = seedName || "";
     let prof = "";
-    if (/,| and | & |\.|—|-/.test(cleaned)) {
+    if (/,| and | & |\.|—|-/i.test(cleaned)) {
       const parts = cleaned.split(/,| and | & |\.|—| - /i).map(s => s.trim()).filter(Boolean);
       name = parts[0] || name;
       prof = parts.slice(1).join(", ");
@@ -798,7 +819,7 @@ function Screen4({ username, allGoals, setAllGoals, selectedGoals, setSelectedGo
 }
 
 // ============ AETHER CHAT POPUP (used everywhere) ============
-function AetherChat({ username, onClose }: { username: string; onClose: () => void }) {
+function AetherChat({ username, onClose, sessionId, callAetherChatBackend }: { username: string; onClose: () => void; sessionId?: string | null; callAetherChatBackend?: any }) {
   const [msgs, setMsgs] = useState<{ role: "user" | "assistant"; content: string }[]>([
     { role: "assistant", content: `Hi ${username || "friend"} — ask me about DoneHo, your plan, or anything unclear. Short answers only ⚙️` }
   ]);
@@ -818,8 +839,13 @@ function AetherChat({ username, onClose }: { username: string; onClose: () => vo
     setInput("");
     setTyping(true);
     try {
-      const responseText = await fetchChat({ data: { username, messages: newHistory } });
-      setMsgs([...newHistory, { role: "assistant", content: responseText }]);
+      if (sessionId && callAetherChatBackend) {
+        const res = await callAetherChatBackend({ data: { session_id: sessionId, message: userMessage } });
+        setMsgs([...newHistory, { role: "assistant", content: res.reply }]);
+      } else {
+        const responseText = await fetchChat({ data: { username, messages: newHistory } });
+        setMsgs([...newHistory, { role: "assistant", content: responseText }]);
+      }
     } catch {
       setMsgs([...newHistory, { role: "assistant", content: "My signal got disrupted — try again ⚙️" }]);
     } finally { setTyping(false); }
@@ -1338,6 +1364,7 @@ function Screen8(props: any) {
     panelCache, setPanelCache, refinementSeen, setRefinementSeen, refinementNotes, setRefinementNotes,
     regenTick, setRegenTick,
     sessionId, snapshot, setSnapshot, runApi, callSubmitPass2, callCommit,
+    callReportDisruption, callApproveDisruption, callRegenerateNudges, callAetherChatBackend, callGetAetherTip,
   } = props;
 
   const dist = useMemo(
@@ -1361,24 +1388,42 @@ function Screen8(props: any) {
   // Disruption panel
   const [disruption, setDisruption] = useState("");
   const [disruptionMsg, setDisruptionMsg] = useState<string | null>(null);
+  const [pendingApproval, setPendingApproval] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   const [loadTrend, setLoadTrend] = useState(false); // reserved for future
   void loadTrend;
 
-  const submitDisruption = () => {
-    if (!disruption.trim()) return;
-    setDisruptionMsg("Got it — updating your week…");
+  const submitDisruption = async () => {
+    if (!disruption.trim() || !sessionId || !runApi) return;
     setRefreshing(true);
-    // clear caches so panels re-fetch mock/AI content on next open
+    setPendingApproval(false);
+    const result: any = await runApi(() =>
+      callReportDisruption({ data: { session_id: sessionId, description: disruption.trim(), direction: "LOSS" } })
+    );
+    setRefreshing(false);
+    if (!result) return; // runApi already set apiError
+    setSnapshot(result);
     setPanelCache({});
     setRegenTick((t: number) => t + 1);
-    setTimeout(() => {
-      setRefreshing(false);
-      setDisruptionMsg("Blueprint updated. Your week stays on track.");
-      setDisruption("");
-      setTimeout(() => setDisruptionMsg(null), 3500);
-    }, 1400);
+    const rec = result.pending_recalibration;
+    if (rec) {
+      setDisruptionMsg(rec.message);
+      setPendingApproval(!!rec.requires_approval);
+    }
+    setDisruption("");
+  };
+
+  const approveDisruptionNow = async () => {
+    if (!sessionId || !runApi) return;
+    setRefreshing(true);
+    const result: any = await runApi(() => callApproveDisruption({ data: { session_id: sessionId } }));
+    setRefreshing(false);
+    if (!result) return;
+    setSnapshot(result);
+    setPendingApproval(false);
+    setDisruptionMsg(result.pending_recalibration?.message ?? "Updated.");
+    setTimeout(() => setDisruptionMsg(null), 4500);
   };
 
   const regenerateBlueprint = () => {
@@ -1424,9 +1469,16 @@ function Screen8(props: any) {
             placeholder="Something changed today — good or bad? Tell Aether."
             className="flex-1 bg-[#e8d5a3] text-[#2c1810] rounded-full px-3 py-1 text-[11px] outline-none border border-[#b87333]"
           />
-          <button onClick={submitDisruption} className="btn-copper px-3 py-1 text-[10px]">Send</button>
+          <button onClick={submitDisruption} className="btn-copper px-3 py-1 text-[10px]" disabled={refreshing}>
+            {refreshing ? "…" : "Send"}
+          </button>
         </div>
         {disruptionMsg && <div className="text-[10px] italic text-[#2d4a1e] mt-1 fade-in">{disruptionMsg}</div>}
+        {pendingApproval && (
+          <button onClick={approveDisruptionNow} className="btn-olive w-full mt-1.5 py-1.5 text-[10px]" disabled={refreshing}>
+            Confirm this adjustment
+          </button>
+        )}
       </div>
 
       {/* Placeholder widget row */}
@@ -1534,8 +1586,9 @@ function Screen8(props: any) {
 
       {panel && <SidePanel panelId={panel} dist={dist} onClose={() => setPanel(null)} onNav={onNav}
         userData={{ username, selectedGoals, tasksPerGoal, lifeLoadScore: lifeLoad, timeOfDay: new Date().getHours(), totalHoursPerDay, goalSliders, location: userProfile?.location }}
-        panelCache={panelCache} setPanelCache={setPanelCache} />}
-      {chatOpen && <AetherChat username={username} onClose={() => setChatOpen(false)} />}
+        panelCache={panelCache} setPanelCache={setPanelCache}
+        sessionId={sessionId} snapshot={snapshot} runApi={runApi} callRegenerateNudges={callRegenerateNudges} />}
+      {chatOpen && <AetherChat username={username} onClose={() => setChatOpen(false)} sessionId={sessionId} callAetherChatBackend={callAetherChatBackend} />}
 
       {showRefinement && (
         <Pass2RefinementModal
@@ -1834,74 +1887,71 @@ function AISkeleton() {
   );
 }
 
-function DayBoostersPanel({ userData, panelCache, setPanelCache }: any) {
-  const fetchBoosters = useServerFn(getDayBoosters);
-  const [data, setData] = useState<any[] | null>(panelCache.boost || null);
-  const [loading, setLoading] = useState(!panelCache.boost);
+function DayBoostersPanel({ sessionId, snapshot, runApi, callRegenerateNudges, setSnapshot }: any) {
+  const items = snapshot?.suggestions?.day_boosters;
+  const [loading, setLoading] = useState(!items || items.length === 0);
   const [error, setError] = useState(false);
 
-  const load = async (force = false) => {
-    if (!force && panelCache.boost) return;
+  const load = async () => {
+    if (!sessionId || !runApi) { setError(true); setLoading(false); return; }
     setLoading(true); setError(false);
-    try {
-      const res = await fetchBoosters({ data: { userData } });
-      setData(res);
-      setPanelCache({ ...panelCache, boost: res });
-    } catch { setError(true); }
-    finally { setLoading(false); }
+    const result = await runApi(() => callRegenerateNudges({ data: { session_id: sessionId } }));
+    if (result) setSnapshot(result); else setError(true);
+    setLoading(false);
   };
-  useEffect(() => { if (!panelCache.boost) load(); }, []);
+  useEffect(() => { if (!items || items.length === 0) load(); }, []);
 
   if (loading) return <AISkeleton />;
-  if (error || !data) return (
+  if (error || !items || items.length === 0) return (
     <div className="text-center text-[11px] text-[#2c1810] italic">
       Aether is recalibrating…
-      <button onClick={() => load(true)} className="btn-copper px-3 py-1 mt-2 text-xs block mx-auto">Retry</button>
+      <button onClick={load} className="btn-copper px-3 py-1 mt-2 text-xs block mx-auto">Retry</button>
     </div>
   );
 
   return (
     <div className="space-y-2">
-      {data.map((b, i) => (
+      {items.map((b: any, i: number) => (
         <div key={i} className="bg-[#e8d5a3] border border-[#b87333] rounded-lg p-2">
           <div className="font-bold text-[12px] text-[#2c1810]">🚀 {b.title}</div>
           <div className="text-[10px] text-[#5a3a20] mt-1">{b.description}</div>
-          {b.actionType !== "tip" && b.actionUrl && (
-            <a href={b.actionUrl} target="_blank" rel="noopener" className="btn-copper inline-block px-3 py-1 text-[10px] mt-1.5">
-              {b.actionType === "youtube" ? "▶ Watch" : "Open App →"}
+          {typeof b.time_saved_minutes === "number" && (
+            <span className="text-[9px] bg-[#4a7c59] text-white px-2 py-0.5 rounded-full inline-block mt-1">
+              Saves {b.time_saved_minutes} min
+            </span>
+          )}
+          {b.action_type !== "tip" && b.link && (
+            <a href={b.link} target="_blank" rel="noopener" className="btn-copper inline-block px-3 py-1 text-[10px] mt-1.5">
+              {b.action_type === "youtube" ? "▶ Watch" : "Open App →"}
             </a>
           )}
         </div>
       ))}
-      <button onClick={() => load(true)} className="btn-olive w-full py-1.5 text-[11px]">↻ Regenerate Boosters</button>
+      <button onClick={load} className="btn-olive w-full py-1.5 text-[11px]">↻ Regenerate Boosters</button>
     </div>
   );
 }
 
-function OpportunityMapPanel({ userData, panelCache, setPanelCache }: any) {
-  const fetchOpp = useServerFn(getOpportunityMap);
-  const [data, setData] = useState<any[] | null>(panelCache.opp || null);
-  const [loading, setLoading] = useState(!panelCache.opp);
+function OpportunityMapPanel({ sessionId, snapshot, runApi, callRegenerateNudges, setSnapshot }: any) {
+  const items = snapshot?.suggestions?.opportunity_map;
+  const [loading, setLoading] = useState(!items || items.length === 0);
   const [error, setError] = useState(false);
   const [mode, setMode] = useState<"text" | "visual">("text");
 
-  const load = async (force = false) => {
-    if (!force && panelCache.opp) return;
+  const load = async () => {
+    if (!sessionId || !runApi) { setError(true); setLoading(false); return; }
     setLoading(true); setError(false);
-    try {
-      const res = await fetchOpp({ data: { userData } });
-      setData(res);
-      setPanelCache({ ...panelCache, opp: res });
-    } catch { setError(true); }
-    finally { setLoading(false); }
+    const result = await runApi(() => callRegenerateNudges({ data: { session_id: sessionId } }));
+    if (result) setSnapshot(result); else setError(true);
+    setLoading(false);
   };
-  useEffect(() => { if (!panelCache.opp) load(); }, []);
+  useEffect(() => { if (!items || items.length === 0) load(); }, []);
 
   if (loading) return <AISkeleton />;
-  if (error || !data) return (
+  if (error || !items || items.length === 0) return (
     <div className="text-center text-[11px] text-[#2c1810] italic">
       Aether is recalibrating…
-      <button onClick={() => load(true)} className="btn-copper px-3 py-1 mt-2 text-xs block mx-auto">Retry</button>
+      <button onClick={load} className="btn-copper px-3 py-1 mt-2 text-xs block mx-auto">Retry</button>
     </div>
   );
 
@@ -1914,39 +1964,52 @@ function OpportunityMapPanel({ userData, panelCache, setPanelCache }: any) {
           className={`px-3 py-1 rounded-full text-[10px] ${mode === "visual" ? "bg-[#2d4a1e] text-[#e8d5b0]" : "bg-[#e8d5a3] text-[#2c1810]"}`}>Visual</button>
       </div>
 
-      {mode === "text" && data.map((c, i) => (
+      {mode === "text" && items.map((c: any, i: number) => (
         <div key={i} className="rounded-lg p-2" style={{ background: "#2d4a1e", color: "#e8d5b0" }}>
-          <div className="font-bold text-[12px] text-[#d4a843]">⚡ {c.axis}</div>
-          <div className="text-[10px] mt-1">
-            <div>• {c.task1} <span className="text-[#a3c54a] text-[8px]">({c.goal1})</span></div>
-            <div>• {c.task2} <span className="text-[#a3c54a] text-[8px]">({c.goal2})</span></div>
-          </div>
+          <div className="font-bold text-[12px] text-[#d4a843]">⚡ {c.title}</div>
+          <div className="text-[10px] mt-1">{c.description}</div>
+          {c.task1 && (
+            <div className="text-[10px] mt-1">
+              <div>• {c.task1} {c.goal1 && <span className="text-[#a3c54a] text-[8px]">({c.goal1})</span>}</div>
+              {c.task2 && <div>• {c.task2} <span className="text-[#a3c54a] text-[8px]">({c.goal2})</span></div>}
+            </div>
+          )}
           <div className="flex justify-between items-center mt-1.5">
-            <span className="text-[9px] bg-[#4a7c59] text-white px-2 py-0.5 rounded-full">Saves {c.timeSavedPerWeek}</span>
-            <span className={`text-[9px] px-2 py-0.5 rounded-full ${c.difficulty === "Easy" ? "bg-[#4a7c59]" : "bg-[#d4843a]"} text-white`}>{c.difficulty}</span>
+            {typeof c.time_saved_minutes === "number" && (
+              <span className="text-[9px] bg-[#4a7c59] text-white px-2 py-0.5 rounded-full">Saves {c.time_saved_minutes} min</span>
+            )}
+            {c.difficulty && (
+              <span className={`text-[9px] px-2 py-0.5 rounded-full ${c.difficulty === "Easy" ? "bg-[#4a7c59]" : "bg-[#d4843a]"} text-white`}>{c.difficulty}</span>
+            )}
           </div>
-          <div className="text-[9px] italic mt-1 text-[#e8d5b0]/80">How to: {c.howTo}</div>
+          {c.justification && <div className="text-[9px] italic mt-1 text-[#e8d5b0]/80">{c.justification}</div>}
         </div>
       ))}
 
       {mode === "visual" && (
         <div className="space-y-2">
-          {data.map((c, i) => (
+          {items.map((c: any, i: number) => (
             <div key={i} className="bg-[#e8d5a3] border-2 border-[#b87333] rounded-lg p-2">
-              <div className="font-bold text-[11px] text-[#2c1810]">⚡ {c.axis}</div>
-              <div className="flex items-center gap-1 mt-2">
-                <FlowBox label={c.task1} sub={c.goal1} />
-                <FlowArrow />
-                <FlowBox label={c.task2} sub={c.goal2} highlight />
-                <FlowArrow />
-                <FlowBox label={`Saves ${c.timeSavedPerWeek}`} pill />
-              </div>
+              <div className="font-bold text-[11px] text-[#2c1810]">⚡ {c.title}</div>
+              {c.task1 && (
+                <div className="flex items-center gap-1 mt-2">
+                  <FlowBox label={c.task1} sub={c.goal1} />
+                  <FlowArrow />
+                  <FlowBox label={c.task2 || c.title} sub={c.goal2} highlight />
+                  {typeof c.time_saved_minutes === "number" && (
+                    <>
+                      <FlowArrow />
+                      <FlowBox label={`Saves ${c.time_saved_minutes}m`} pill />
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           ))}
         </div>
       )}
 
-      <button onClick={() => load(true)} className="btn-olive w-full py-1.5 text-[11px]">↻ Regenerate Map</button>
+      <button onClick={load} className="btn-olive w-full py-1.5 text-[11px]">↻ Regenerate Map</button>
     </div>
   );
 }
@@ -1970,29 +2033,25 @@ function FlowArrow() {
   return <div className="text-[#6b3f1a] text-xs shrink-0">→</div>;
 }
 
-function SmartSpendPanel({ userData, panelCache, setPanelCache }: any) {
-  const fetchSpend = useServerFn(getSmartSpend);
-  const [data, setData] = useState<any[] | null>(panelCache.spend || null);
-  const [loading, setLoading] = useState(!panelCache.spend);
+function SmartSpendPanel({ sessionId, snapshot, runApi, callRegenerateNudges, setSnapshot }: any) {
+  const items = snapshot?.suggestions?.smart_spend;
+  const [loading, setLoading] = useState(!items || items.length === 0);
   const [error, setError] = useState(false);
 
-  const load = async (force = false) => {
-    if (!force && panelCache.spend) return;
+  const load = async () => {
+    if (!sessionId || !runApi) { setError(true); setLoading(false); return; }
     setLoading(true); setError(false);
-    try {
-      const res = await fetchSpend({ data: { userData } });
-      setData(res);
-      setPanelCache({ ...panelCache, spend: res });
-    } catch { setError(true); }
-    finally { setLoading(false); }
+    const result = await runApi(() => callRegenerateNudges({ data: { session_id: sessionId } }));
+    if (result) setSnapshot(result); else setError(true);
+    setLoading(false);
   };
-  useEffect(() => { if (!panelCache.spend) load(); }, []);
+  useEffect(() => { if (!items || items.length === 0) load(); }, []);
 
   if (loading) return <AISkeleton />;
-  if (error || !data) return (
+  if (error || !items || items.length === 0) return (
     <div className="text-center text-[11px] text-[#2c1810] italic">
       Aether is recalibrating…
-      <button onClick={() => load(true)} className="btn-copper px-3 py-1 mt-2 text-xs block mx-auto">Retry</button>
+      <button onClick={load} className="btn-copper px-3 py-1 mt-2 text-xs block mx-auto">Retry</button>
     </div>
   );
 
@@ -2000,37 +2059,39 @@ function SmartSpendPanel({ userData, panelCache, setPanelCache }: any) {
 
   return (
     <div className="space-y-2">
-      {data.map((s, i) => (
+      {items.map((s: any, i: number) => (
         <div key={i} className="bg-[#e8d5a3] border border-[#b87333] rounded-lg p-2">
           <div className="flex items-center justify-between">
-            <span className="font-bold text-[11px] text-[#2c1810] flex-1">{s.product}</span>
-            <span className={`text-[8px] px-2 py-0.5 rounded-full text-white ${urgencyColor(s.urgency)}`}>{s.urgency}</span>
+            <span className="font-bold text-[11px] text-[#2c1810] flex-1">{s.title}</span>
+            {s.urgency && <span className={`text-[8px] px-2 py-0.5 rounded-full text-white ${urgencyColor(s.urgency)}`}>{s.urgency}</span>}
           </div>
           <div className="flex items-center gap-2 mt-1">
-            <span className="font-bold text-[#b87333] text-[12px]">{s.price}</span>
-            <span className="text-[9px] bg-[#4a7c59] text-white px-2 py-0.5 rounded-full">Saves {s.timeSavedPerWeek}</span>
+            {s.price && <span className="font-bold text-[#b87333] text-[12px]">{s.price}</span>}
+            {typeof s.time_saved_minutes === "number" && (
+              <span className="text-[9px] bg-[#4a7c59] text-white px-2 py-0.5 rounded-full">Saves {s.time_saved_minutes} min</span>
+            )}
           </div>
-          <div className="text-[10px] italic text-[#2c1810] mt-1">{s.insight}</div>
-          <a href={s.searchUrl} target="_blank" rel="noopener" className="btn-copper inline-block px-3 py-1 text-[10px] mt-1.5">Search →</a>
+          <div className="text-[10px] italic text-[#2c1810] mt-1">{s.description}</div>
+          {s.link && <a href={s.link} target="_blank" rel="noopener" className="btn-copper inline-block px-3 py-1 text-[10px] mt-1.5">Search →</a>}
         </div>
       ))}
       <div className="text-[8px] italic text-[#5a3a20] text-center">Prices approximate.</div>
-      <button onClick={() => load(true)} className="btn-olive w-full py-1.5 text-[11px]">↻ Regenerate Suggestions</button>
+      <button onClick={load} className="btn-olive w-full py-1.5 text-[11px]">↻ Regenerate Suggestions</button>
     </div>
   );
 }
 
-function SidePanel({ panelId, dist, onClose, onNav, userData, panelCache, setPanelCache }: any) {
+function SidePanel({ panelId, dist, onClose, onNav, sessionId, snapshot, setSnapshot, runApi, callRegenerateNudges }: any) {
   let title = ""; let content: React.ReactNode = null;
   if (panelId === "opp") {
     title = "Opportunity Map";
-    content = <OpportunityMapPanel userData={userData} panelCache={panelCache} setPanelCache={setPanelCache} />;
+    content = <OpportunityMapPanel sessionId={sessionId} snapshot={snapshot} setSnapshot={setSnapshot} runApi={runApi} callRegenerateNudges={callRegenerateNudges} />;
   } else if (panelId === "boost") {
     title = "Day Boosters";
-    content = <DayBoostersPanel userData={userData} panelCache={panelCache} setPanelCache={setPanelCache} />;
+    content = <DayBoostersPanel sessionId={sessionId} snapshot={snapshot} setSnapshot={setSnapshot} runApi={runApi} callRegenerateNudges={callRegenerateNudges} />;
   } else if (panelId === "spend") {
     title = "Smart Spend";
-    content = <SmartSpendPanel userData={userData} panelCache={panelCache} setPanelCache={setPanelCache} />;
+    content = <SmartSpendPanel sessionId={sessionId} snapshot={snapshot} setSnapshot={setSnapshot} runApi={runApi} callRegenerateNudges={callRegenerateNudges} />;
   } else if (panelId === "day") {
     title = "Day Blueprint";
     content = (
@@ -2060,55 +2121,67 @@ function SidePanel({ panelId, dist, onClose, onNav, userData, panelCache, setPan
 }
 
 // ============ SCREEN 12 — DAY OUTPUT ============
-function Screen12({ username, selectedGoals, goalSliders, tasksPerGoal, totalHoursPerDay,
-  resilienceScore, setResilienceScore, reservePool, setReservePool, planningLag, setPlanningLag,
-  vaultedTasks, setVaultedTasks, onNav, userProfile, aetherInsights, setAetherInsights }: any) {
+function Screen12({ username, onNav, userProfile, aetherInsights, setAetherInsights,
+  sessionId, snapshot, setSnapshot, runApi, callGetChecklist, callSubmitDayOutput, callLifeHappened }: any) {
 
-  const dist = useMemo(() => computeDistribution(selectedGoals, goalSliders, totalHoursPerDay || 5, tasksPerGoal),
-    [selectedGoals, goalSliders, totalHoursPerDay, tasksPerGoal]);
-
-  const allTasks: TaskItem[] = useMemo(() => {
-    const list: TaskItem[] = [];
-    dist.forEach((d) => d.tasks.forEach((t, i) => {
-      list.push({ id: `${d.goal}-${i}`, goal: d.goal, name: t.name, minutes: t.minutes, done: true });
-    }));
-    return list;
-  }, [dist]);
-
-  const [tasks, setTasks] = useState<TaskItem[]>(allTasks);
-  const [result, setResult] = useState<null | { type: "A" | "B" | "C" | "D" }>(null);
+  const [checklist, setChecklist] = useState<any[]>([]);
+  const [ticked, setTicked] = useState<Set<number>>(new Set());
+  const [loadingList, setLoadingList] = useState(true);
+  const [listError, setListError] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [submitResult, setSubmitResult] = useState<any>(null);
   const [recalibrating, setRecalibrating] = useState(false);
+  const [lifeHappenedMsg, setLifeHappenedMsg] = useState<string | null>(null);
 
-  useEffect(() => { setTasks(allTasks); }, [allTasks]);
-
-  const toggle = (id: string) => setTasks(tasks.map((t) => t.id === id ? { ...t, done: !t.done } : t));
-  const missed = tasks.filter((t) => !t.done);
-
-  const isSaturday = new Date().getDay() === 6;
-
-  const lifeHappened = () => {
-    setRecalibrating(true);
-    setTimeout(() => {
-      setRecalibrating(false);
-      if (isSaturday && missed.length > 0) {
-        setVaultedTasks([...vaultedTasks, ...missed.map((m: TaskItem) => m.name)]);
-        setResilienceScore(resilienceScore + 8);
-        setResult({ type: "D" });
-      } else if (missed.length <= 2) {
-        // Silently use hidden reserve — never show numbers.
-        setReservePool({ ...reservePool, usedThisWeek: (reservePool.usedThisWeek || 0) + missed.length * 0.5 });
-        setResilienceScore(resilienceScore + 10);
-        setResult({ type: "A" });
-      } else if (missed.length <= 4) {
-        setPlanningLag({ tasks: [...planningLag.tasks, ...missed.map((m: TaskItem) => m.name)], totalMins: planningLag.totalMins + missed.length * 15 });
-        setResilienceScore(resilienceScore + 5);
-        setResult({ type: "B" });
-      } else {
-        setPlanningLag({ tasks: [...planningLag.tasks, ...missed.map((m: TaskItem) => m.name)], totalMins: planningLag.totalMins + missed.length * 20 });
-        setResilienceScore(resilienceScore + 3);
-        setResult({ type: "C" });
+  useEffect(() => {
+    (async () => {
+      if (!sessionId) { setListError(true); setLoadingList(false); return; }
+      setLoadingList(true);
+      try {
+        const res = await callGetChecklist({ data: { session_id: sessionId } });
+        setChecklist(res.checklist || []);
+        setTicked(new Set((res.checklist || []).map((c: any) => c.index)));
+      } catch {
+        setListError(true);
+      } finally {
+        setLoadingList(false);
       }
-    }, 1500);
+    })();
+  }, [sessionId]);
+
+  const toggle = (index: number) => {
+    setTicked((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index); else next.add(index);
+      return next;
+    });
+  };
+
+  const missedCount = checklist.length - ticked.size;
+
+  const submitDay = async () => {
+    if (!sessionId || !runApi) return;
+    setRecalibrating(true);
+    const uncheckedIndices = checklist.map((c) => c.index).filter((i) => !ticked.has(i));
+    const dayLabel = new Date().toLocaleDateString("en-US", { weekday: "long" });
+    const result: any = await runApi(() =>
+      callSubmitDayOutput({ data: { session_id: sessionId, day_label: dayLabel, unticked_indices: uncheckedIndices } })
+    );
+    setRecalibrating(false);
+    if (!result) return;
+    setSnapshot(result);
+    setSubmitResult(result);
+    setSubmitted(true);
+  };
+
+  const lifeHappened = async () => {
+    if (!sessionId || !runApi) return;
+    setRecalibrating(true);
+    const result: any = await runApi(() => callLifeHappened({ data: { session_id: sessionId } }));
+    setRecalibrating(false);
+    if (!result) return;
+    setSnapshot(result);
+    setLifeHappenedMsg(result.pending_recalibration?.message ?? "Recalibrated — your week stays on track.");
   };
 
   return (
@@ -2117,7 +2190,7 @@ function Screen12({ username, selectedGoals, goalSliders, tasksPerGoal, totalHou
         <div className="flex-1">
           <AetherProactiveInsight
             screenName="Day Output"
-            userData={{ username, completedTasks: tasks.filter(t => t.done).map(t => t.name), missedTasks: missed.map(m => m.name), timeOfDay: new Date().getHours() }}
+            userData={{ username, missedCount, timeOfDay: new Date().getHours() }}
             cache={aetherInsights}
             setCache={setAetherInsights}
           />
@@ -2132,29 +2205,72 @@ function Screen12({ username, selectedGoals, goalSliders, tasksPerGoal, totalHou
         <div className="text-[9px] italic text-[#5a3a20]">I've marked your tasks as done {username}. Untick anything life didn't allow — no judgment.</div>
       </div>
 
-      <div className="flex-1 overflow-y-auto thin-scroll px-3 mt-2 space-y-1.5">
-        {tasks.map((t) => (
-          <div key={t.id} className="bg-[#e8d5a3] border border-[#b87333] rounded-xl p-2 flex items-center gap-2">
-            <button onClick={() => toggle(t.id)}
-              className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold"
-              style={{
-                background: t.done ? "#4a7c59" : "transparent",
-                border: `2px solid ${t.done ? "#4a7c59" : "#c44b3e"}`,
-                color: "white",
-              }}>{t.done ? "✓" : ""}</button>
-            <div className="flex-1">
-              <div className="text-[11px] font-bold text-[#2c1810]">{t.name}</div>
-              <div className="text-[9px] text-[#5a3a20]">{t.goal} • {t.minutes} min</div>
+      {loadingList && <div className="flex-1 flex items-center justify-center"><AISkeleton /></div>}
+
+      {!loadingList && listError && (
+        <div className="flex-1 flex items-center justify-center text-[11px] text-[#2c1810] italic px-4 text-center">
+          Couldn't load today's checklist — make sure a Blueprint is committed first.
+        </div>
+      )}
+
+      {!loadingList && !listError && checklist.length === 0 && (
+        <div className="flex-1 flex items-center justify-center text-[11px] text-[#2c1810] italic px-4 text-center">
+          Nothing active on today's Blueprint — you're all caught up.
+        </div>
+      )}
+
+      {!loadingList && !listError && checklist.length > 0 && (
+        <div className="flex-1 overflow-y-auto thin-scroll px-3 mt-2 space-y-1.5">
+          {checklist.map((c) => (
+            <div key={c.index} className="bg-[#e8d5a3] border border-[#b87333] rounded-xl p-2 flex items-center gap-2">
+              <button onClick={() => toggle(c.index)} disabled={submitted}
+                className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
+                style={{
+                  background: ticked.has(c.index) ? "#4a7c59" : "transparent",
+                  border: `2px solid ${ticked.has(c.index) ? "#4a7c59" : "#c44b3e"}`,
+                  color: "white",
+                }}>{ticked.has(c.index) ? "✓" : ""}</button>
+              <div className="flex-1">
+                <div className="text-[11px] font-bold text-[#2c1810]">{c.title}</div>
+                <div className="text-[9px] text-[#5a3a20]">{c.goal_title} • {c.task_title} • {Math.round(c.expected_hours * 60)} min</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!loadingList && !listError && checklist.length > 0 && !submitted && (
+        <div className="px-3 py-2 space-y-1">
+          <div className="text-[10px] text-[#2c1810]">Tasks missed: {missedCount}</div>
+          <button onClick={submitDay} className="btn-copper w-full py-2 text-xs">Submit Day</button>
+        </div>
+      )}
+
+      {submitted && submitResult && !lifeHappenedMsg && (
+        <div className="px-3 py-2">
+          <div className="p-3 rounded-xl text-white bg-[#4a7c59]">
+            <div className="font-bold text-[13px]">Day Logged ✓</div>
+            <div className="text-[10px] mt-1">
+              {submitResult.missed_count > 0
+                ? `${submitResult.missed_count} of ${submitResult.total_checked} missed today — no judgment.`
+                : "Everything on today's plan got done."}
             </div>
           </div>
-        ))}
-      </div>
+          {submitResult.should_offer_life_happened && (
+            <>
+              <button onClick={lifeHappened} className="btn-copper w-full py-2 text-xs mt-2">LIFE HAPPENED</button>
+              <div className="text-[9px] text-center text-[#5a3a20] italic mt-1">Aether will recalibrate — no guilt, no penalty.</div>
+            </>
+          )}
+        </div>
+      )}
 
-      {missed.length > 0 && !result && (
-        <div className="px-3 py-2 space-y-1">
-          <div className="text-[10px] text-[#2c1810]">Tasks missed: {missed.length}</div>
-          <button onClick={lifeHappened} className="btn-copper w-full py-2 text-xs">LIFE HAPPENED</button>
-          <div className="text-[9px] text-center text-[#5a3a20] italic">Aether will recalibrate — no guilt, no penalty.</div>
+      {lifeHappenedMsg && (
+        <div className="px-3 py-2">
+          <div className="p-3 rounded-xl text-white" style={{ background: "#3a6f9c" }}>
+            <div className="font-bold text-[13px]">Blueprint Recalibrated</div>
+            <div className="text-[10px] mt-1">{lifeHappenedMsg}</div>
+          </div>
         </div>
       )}
 
@@ -2164,31 +2280,6 @@ function Screen12({ username, selectedGoals, goalSliders, tasksPerGoal, totalHou
             <BigGear size={60} spin />
             <div className="text-[12px] font-bold text-[#2c1810] mt-2">Aether is Aetherizing your week…</div>
           </div>
-        </div>
-      )}
-
-      {result && (
-        <div className="px-3 py-2">
-          <div className="p-3 rounded-xl text-white" style={{
-            background: result.type === "A" ? "#4a7c59" :
-              result.type === "B" ? "#d4a843" :
-                result.type === "C" ? "#d4843a" : "#3a6f9c",
-          }}>
-            <div className="font-bold text-[13px]">
-              {result.type === "A" && "Day Healed ✓"}
-              {result.type === "B" && "Partially Healed ✓"}
-              {result.type === "C" && "Blueprint Recalibrated"}
-              {result.type === "D" && "Tasks Vaulted Safely ✓"}
-            </div>
-            <div className="text-[10px] mt-1">
-              {result.type === "A" && "I've absorbed the missed work — your blueprint stays intact."}
-              {result.type === "B" && "Some was absorbed, the rest redistributed across your week."}
-              {result.type === "C" && "High-priority tasks protected. The rest redistributed."}
-              {result.type === "D" && "Tasks moved to Saturday Vault. Your week stays on track."}
-            </div>
-          </div>
-          <button onClick={() => { setResult(null); setTasks(tasks.map((t) => ({ ...t, done: true }))); }}
-            className="btn-olive w-full py-1.5 text-xs mt-2">Continue</button>
         </div>
       )}
 
