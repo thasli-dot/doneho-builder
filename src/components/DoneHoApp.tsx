@@ -466,6 +466,12 @@ export default function DoneHoApp() {
               setRefinementNotes={setRefinementNotes}
               regenTick={regenTick}
               setRegenTick={setRegenTick}
+              sessionId={sessionId}
+              snapshot={snapshot}
+              setSnapshot={setSnapshot}
+              runApi={runApi}
+              callSubmitPass2={callSubmitPass2}
+              callCommit={callCommit}
             />
           )}
           {screen === 12 && (
