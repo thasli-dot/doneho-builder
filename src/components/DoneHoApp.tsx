@@ -1164,7 +1164,13 @@ function getWeekRange(): string {
   return `${fmt(monday)} - ${fmt(sunday)}`;
 }
 
-function computeDistribution(selected: string[], sliders: Record<string, GoalSliders>, totalHours: number, tasks: Record<string, string[]>) {
+function computeDistribution(
+  selected: string[],
+  sliders: Record<string, GoalSliders>,
+  totalHours: number,
+  tasks: Record<string, string[]>,
+  blueprint?: any,
+) {
   const available = Math.max(1, totalHours);
   const weighted: Record<string, number> = {};
   let sum = 0;
@@ -1182,7 +1188,7 @@ function computeDistribution(selected: string[], sliders: Record<string, GoalSli
     const perTask = taskList.length > 0 ? Math.max(10, Math.round((hours * 60) / taskList.length / 5) * 5) : 0;
     result.push({
       goal: g, hours, weighted: weighted[g],
-      tasks: taskList.map((t) => ({ name: t, minutes: perTask, milestones: mockMilestones(t) })),
+      tasks: taskList.map((t) => ({ name: t, minutes: perTask, milestones: milestonesForTask(blueprint, g, t) })),
     });
   });
   result.sort((a, b) => b.weighted - a.weighted);
