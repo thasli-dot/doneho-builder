@@ -216,10 +216,10 @@ function AetherProactiveInsight({ screenName, userData, cache, setCache }: any) 
   );
 }
 
-// ============ LIFE LOAD (frozen formula from brief) ============
-// LifeLoad = 100 × (0.35·avg_Traffic + 0.35·avg_Volatility + 0.30·CommitmentRatio)
-// CommitmentRatio = 0.75 placeholder until backend supplies real value.
-const COMMITMENT_RATIO = 0.75;
+// ============ LIFE LOAD (pre-commit local estimate) ============
+// Pre-commit we only have Traffic + Volatility signals from the sliders,
+// so we blend them 50/50. Once the backend Commitment Contract exists,
+// the Dashboard uses snapshot.lifeload directly instead of this function.
 function computeLifeLoad(selected: string[], sliders: Record<string, GoalSliders>): number {
   if (selected.length === 0) return 0;
   let vSum = 0, tSum = 0;
@@ -228,9 +228,9 @@ function computeLifeLoad(selected: string[], sliders: Record<string, GoalSliders
     vSum += s.volatility;
     tSum += s.traffic;
   });
-  const avgV = (vSum / selected.length) / 10; // normalise 0-1
+  const avgV = (vSum / selected.length) / 10;
   const avgT = (tSum / selected.length) / 10;
-  const load = 100 * (0.35 * avgT + 0.35 * avgV + 0.30 * COMMITMENT_RATIO);
+  const load = 100 * (0.5 * avgT + 0.5 * avgV);
   return Math.round(load * 10) / 10;
 }
 
