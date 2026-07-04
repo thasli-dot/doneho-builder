@@ -1567,18 +1567,36 @@ const REFINE_OPTIONS = [
   "Something else affecting my time or energy",
 ];
 
-function Pass2RefinementModal({ onClose, notes, setNotes }: any) {
+function Pass2RefinementModal({ onClose, notes, setNotes, onSaved }: any) {
   const [ticked, setTicked] = useState<string[]>(notes || []);
   const [followUp, setFollowUp] = useState("");
   const [phase, setPhase] = useState<"tick" | "chat">("tick");
   const toggle = (o: string) => setTicked(ticked.includes(o) ? ticked.filter(x => x !== o) : [...ticked, o]);
 
-  const advance = () => {
-    if (ticked.length === 0) { onClose(); return; }
+  const derivePayload = (ticks: string[], text: string) => {
+    // Pull the first number out of the free-text answer as an hours estimate.
+    const m = text.match(/(\d+(?:\.\d+)?)/);
+    const hrs = m ? parseFloat(m[1]) : 0;
+    const isCare = ticks.some((t) => /caregiv|childcare|eldercare/i.test(t));
+    const isEvent = ticks.some((t) => /event/i.test(t));
+    return {
+      caregiving_hours: isCare ? hrs : 0,
+      planned_event_hours: isEvent ? hrs : 0,
+      other_time_constraint_hours: !isCare && !isEvent ? hrs : 0,
+    };
+  };
+
+  const advance = async () => {
+    if (ticked.length === 0) {
+      if (onSaved) await onSaved({ caregiving_hours: 0, planned_event_hours: 0, other_time_constraint_hours: 0 });
+      onClose();
+      return;
+    }
     setPhase("chat");
   };
-  const submitFollowUp = () => {
+  const submitFollowUp = async () => {
     setNotes([...(notes || []), ...ticked, followUp.trim()].filter(Boolean));
+    if (onSaved) await onSaved(derivePayload(ticked, followUp));
     onClose();
   };
 
