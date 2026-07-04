@@ -507,6 +507,20 @@ export default function DoneHoApp() {
             />
           )}
           </ScreenBoundary>
+          {apiLoading && (
+            <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 fade-in">
+              <div className="bg-[#e8d5a3] border-2 border-[#b87333] rounded-2xl px-5 py-4 flex flex-col items-center gap-2">
+                <BigGear size={44} spin />
+                <div className="text-[11px] text-[#2c1810] font-semibold">Aether is working…</div>
+              </div>
+            </div>
+          )}
+          {apiError && (
+            <div className="absolute bottom-3 left-3 right-3 z-50 bg-[#b83a3a] text-white text-[11px] rounded-xl px-3 py-2 flex items-center justify-between fade-in">
+              <span>{apiError}</span>
+              <button onClick={() => setApiError(null)} className="ml-2 underline">Dismiss</button>
+            </div>
+          )}
         </div>
       </div>
     </div>
