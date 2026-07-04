@@ -81,18 +81,42 @@ const GOAL_ICONS: Record<string, string> = {
   "Spiritual and Mindfulness": "🕯️",
 };
 
-// Milestone extraction from the backend blueprint. Falls back to an empty
-// list when the backend hasn't attached milestones for a given task yet.
-function milestonesForTask(blueprint: any, goal: string, task: string): string[] {
+// Milestone extraction from the backend blueprint. Supports the real backend
+// shape (a flat `blueprint.milestones` array keyed by task_title/goal_title)
+// as well as older nested placeholders. Returns objects with title, hours,
+// and completed flags so the UI can render checkmarks/strikethroughs.
+export type MilestoneItem = { title: string; hours: number; completed: boolean };
+function milestonesForTask(blueprint: any, goal: string, task: string): MilestoneItem[] {
   if (!blueprint) return [];
   try {
+    // Real backend: flat array of milestone records.
+    if (Array.isArray(blueprint?.milestones)) {
+      return (blueprint.milestones as any[])
+        .filter((m) => {
+          const matchTask = m?.task_title === task || m?.task_id === task;
+          const matchGoal = !goal || !m?.goal_title || m.goal_title === goal;
+          return matchTask && matchGoal;
+        })
+        .map((m) => ({
+          title: String(m?.title ?? ""),
+          hours: Number(m?.expected_hours ?? 0),
+          completed: Boolean(m?.completed),
+        }))
+        .filter((m) => m.title);
+    }
+    // Legacy nested shapes.
     const g = blueprint[goal] ?? blueprint?.goals?.[goal];
     const t = g?.[task] ?? g?.tasks?.[task];
-    if (Array.isArray(t)) return t as string[];
-    if (Array.isArray(t?.milestones)) return t.milestones as string[];
+    const raw = Array.isArray(t) ? t : Array.isArray(t?.milestones) ? t.milestones : [];
+    return (raw as any[]).map((m) =>
+      typeof m === "string"
+        ? { title: m, hours: 0, completed: false }
+        : { title: String(m?.title ?? ""), hours: Number(m?.expected_hours ?? 0), completed: Boolean(m?.completed) }
+    ).filter((m) => m.title);
   } catch {}
   return [];
 }
+
 
 function focusFor(sliders: GoalSliders | undefined) {
   const combined = (sliders?.traffic ?? 5) + (sliders?.volatility ?? 5);
