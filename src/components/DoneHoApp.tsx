@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo, Component, type ReactNode } from 
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
 import { chatWithAether, getAetherInsight, getDayBoosters, getOpportunityMap, getSmartSpend } from "@/lib/aether.functions";
+import { startSession, submitGoals, submitClarifications, submitPass2, commitBlueprint } from "@/lib/doneho-api.functions";
 
 // Screen-level safety net — if any screen throws, show a small retry card
 // instead of bubbling to the root "This page didn't load" boundary.
@@ -80,80 +81,17 @@ const GOAL_ICONS: Record<string, string> = {
   "Spiritual and Mindfulness": "🕯️",
 };
 
-// Placeholder milestone generator (mock — will be swapped for backend later).
-// Keyword-based so cards feel specific to the task, not generic filler.
-function mockMilestones(task: string): string[] {
-  const raw = task.trim();
-  if (!raw) return [];
-  const t = raw.toLowerCase();
-  const has = (...words: string[]) => words.some((w) => t.includes(w));
-
-  if (has("learn", "study", "course", "python", "coding", "language", "spanish", "french"))
-    return [
-      `Mon: 25-min intro session on ${raw}`,
-      `Wed: hands-on exercise + short notes`,
-      `Sun: 15-min recap and pick next micro-topic`,
-    ];
-  if (has("read", "book", "article"))
-    return [
-      `Split ${raw} into 3 sittings (~20 pages each)`,
-      `Mid-week: capture 3 highlights + one question`,
-      `Weekend: 10-min reflection, decide next read`,
-    ];
-  if (has("workout", "gym", "run", "cardio", "strength", "yoga", "stretch", "walk", "cycle", "swim"))
-    return [
-      `Mon / Wed / Fri: 30-min ${raw} block`,
-      `Tue or Thu: light mobility + hydration check`,
-      `Sun: 10-min review — reps, RPE, one tweak`,
-    ];
-  if (has("meditat", "mindful", "breath", "journal", "gratitude", "pray"))
-    return [
-      `Daily: 8-min ${raw} at wake or wind-down`,
-      `Mid-week: 2-line reflection on what shifted`,
-      `Sun: pick one intention for next week`,
-    ];
-  if (has("cook", "recipe", "meal", "diet", "grocer"))
-    return [
-      `Sun: plan 3 ${raw} + one grocery list`,
-      `Tue: prep one base (grain / protein / veg)`,
-      `Fri: try one new twist, note the winner`,
-    ];
-  if (has("save", "budget", "invest", "finance", "expense", "money"))
-    return [
-      `Mon: 15-min sweep of last week's spend`,
-      `Wed: move fixed amount to ${raw} bucket`,
-      `Sun: 10-min review, adjust next week's cap`,
-    ];
-  if (has("write", "blog", "essay", "draft", "portfolio"))
-    return [
-      `Mon: outline 3 bullets for ${raw}`,
-      `Wed: 40-min focused draft block`,
-      `Sat: edit pass + share with one person`,
-    ];
-  if (has("clean", "declutter", "organize", "laundry", "kitchen", "home"))
-    return [
-      `Split ${raw} into 3 zones over the week`,
-      `Mid-week: 20-min reset on the busiest zone`,
-      `Sun: quick sweep + restock any essentials`,
-    ];
-  if (has("call", "friend", "family", "date", "partner", "social"))
-    return [
-      `Pick 2 people to reach out to for ${raw}`,
-      `Wed: 20-min call or coffee scheduled`,
-      `Sun: send one thoughtful follow-up`,
-    ];
-  if (has("plan", "review", "goal", "roadmap", "strategy"))
-    return [
-      `Mon: 20-min scoping pass on ${raw}`,
-      `Wed: refine top 3 priorities`,
-      `Sun: retro — what moved, what to drop`,
-    ];
-  // Default — still task-specific, not generic filler.
-  return [
-    `Mon: 20-min kick-off block on ${raw}`,
-    `Wed: focused mid-week session, 30 min`,
-    `Sun: 10-min review + one small next step`,
-  ];
+// Milestone extraction from the backend blueprint. Falls back to an empty
+// list when the backend hasn't attached milestones for a given task yet.
+function milestonesForTask(blueprint: any, goal: string, task: string): string[] {
+  if (!blueprint) return [];
+  try {
+    const g = blueprint[goal] ?? blueprint?.goals?.[goal];
+    const t = g?.[task] ?? g?.tasks?.[task];
+    if (Array.isArray(t)) return t as string[];
+    if (Array.isArray(t?.milestones)) return t.milestones as string[];
+  } catch {}
+  return [];
 }
 
 function focusFor(sliders: GoalSliders | undefined) {
@@ -279,10 +217,10 @@ function AetherProactiveInsight({ screenName, userData, cache, setCache }: any) 
   );
 }
 
-// ============ LIFE LOAD (frozen formula from brief) ============
-// LifeLoad = 100 × (0.35·avg_Traffic + 0.35·avg_Volatility + 0.30·CommitmentRatio)
-// CommitmentRatio = 0.75 placeholder until backend supplies real value.
-const COMMITMENT_RATIO = 0.75;
+// ============ LIFE LOAD (pre-commit local estimate) ============
+// Pre-commit we only have Traffic + Volatility signals from the sliders,
+// so we blend them 50/50. Once the backend Commitment Contract exists,
+// the Dashboard uses snapshot.lifeload directly instead of this function.
 function computeLifeLoad(selected: string[], sliders: Record<string, GoalSliders>): number {
   if (selected.length === 0) return 0;
   let vSum = 0, tSum = 0;
@@ -291,9 +229,9 @@ function computeLifeLoad(selected: string[], sliders: Record<string, GoalSliders
     vSum += s.volatility;
     tSum += s.traffic;
   });
-  const avgV = (vSum / selected.length) / 10; // normalise 0-1
+  const avgV = (vSum / selected.length) / 10;
   const avgT = (tSum / selected.length) / 10;
-  const load = 100 * (0.35 * avgT + 0.35 * avgV + 0.30 * COMMITMENT_RATIO);
+  const load = 100 * (0.5 * avgT + 0.5 * avgV);
   return Math.round(load * 10) / 10;
 }
 
@@ -324,6 +262,35 @@ export default function DoneHoApp() {
   const [refinementNotes, setRefinementNotes] = useState<string[]>([]);
   const [regenTick, setRegenTick] = useState(0); // bumps to force blueprint reshuffle animation
   const [hydrated, setHydrated] = useState(false);
+
+  // ==== Backend session state (DoneHo API on Render) ====
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [snapshot, setSnapshot] = useState<any>(null);
+  const [backendClarifications, setBackendClarifications] = useState<
+    { task_id: string; task_title: string; question: string }[]
+  >([]);
+  const [apiLoading, setApiLoading] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
+
+  const callStartSession = useServerFn(startSession);
+  const callSubmitGoals = useServerFn(submitGoals);
+  const callSubmitClarifications = useServerFn(submitClarifications);
+  const callSubmitPass2 = useServerFn(submitPass2);
+  const callCommit = useServerFn(commitBlueprint);
+
+  async function runApi<T>(fn: () => Promise<T>): Promise<T | null> {
+    setApiLoading(true);
+    setApiError(null);
+    try {
+      return await fn();
+    } catch (e: any) {
+      console.error(e);
+      setApiError("Something went wrong — try again.");
+      return null;
+    } finally {
+      setApiLoading(false);
+    }
+  }
 
   // Load persisted snapshot — if user already committed a Blueprint, land straight on the Dashboard.
   useEffect(() => {
@@ -376,7 +343,17 @@ export default function DoneHoApp() {
           {screen === 3 && (
             <Screen3Chat
               seedName={username}
-              onDone={(name, prof) => { setUsername(name); setProfession(prof); goNext(4); }}
+              onDone={async (name, prof) => {
+                setUsername(name);
+                setProfession(prof);
+                const res = await runApi(() =>
+                  callStartSession({ data: { name, profession: prof } })
+                );
+                if (res?.session_id) {
+                  setSessionId(res.session_id);
+                  goNext(4);
+                }
+              }}
             />
           )}
           {screen === 4 && (
@@ -421,11 +398,28 @@ export default function DoneHoApp() {
               setTotalHoursPerDay={setTotalHoursPerDay}
               tasksPerGoal={tasksPerGoal}
               setTasksPerGoal={setTasksPerGoal}
-              onAetherize={() => {
-                // Skip clarification silently if no vague tasks
-                const vague = collectVagueTasks(selectedGoals, tasksPerGoal);
-                if (vague.length === 0) goNext(7);
-                else goNext(65);
+              onAetherize={async () => {
+                if (!sessionId) { setApiError("Session missing — please restart."); return; }
+                // Build the backend payload from local onboarding state.
+                const goalsPayload = selectedGoals.map((g) => {
+                  const s = goalSliders[g] ?? GOAL_DEFAULTS[g] ?? { volatility: 5, traffic: 5 };
+                  const tasks = (tasksPerGoal[g] ?? [])
+                    .map((t) => t.trim())
+                    .filter(Boolean)
+                    .map((title) => ({ title, is_flexible: true }));
+                  return { category: g, traffic: s.traffic, volatility: s.volatility, tasks };
+                });
+                const res = await runApi(() =>
+                  callSubmitGoals({ data: { session_id: sessionId, goals: goalsPayload } })
+                );
+                if (!res) return;
+                if (res.pending_clarifications && res.pending_clarifications.length > 0) {
+                  setBackendClarifications(res.pending_clarifications);
+                  goNext(65);
+                } else {
+                  setBackendClarifications([]);
+                  goNext(7);
+                }
               }}
               aetherInsights={aetherInsights}
               setAetherInsights={setAetherInsights}
@@ -437,7 +431,15 @@ export default function DoneHoApp() {
               selectedGoals={selectedGoals}
               tasksPerGoal={tasksPerGoal}
               setTasksPerGoal={setTasksPerGoal}
-              onDone={() => goNext(7)}
+              backendClarifications={backendClarifications}
+              onDone={async (answers: Record<string, string> | undefined) => {
+                if (backendClarifications.length > 0 && sessionId && answers) {
+                  await runApi(() =>
+                    callSubmitClarifications({ data: { session_id: sessionId, answers } })
+                  );
+                }
+                goNext(7);
+              }}
             />
           )}
           {screen === 7 && <Screen7 username={username} onContinue={() => goNext(8)} />}
@@ -464,6 +466,12 @@ export default function DoneHoApp() {
               setRefinementNotes={setRefinementNotes}
               regenTick={regenTick}
               setRegenTick={setRegenTick}
+              sessionId={sessionId}
+              snapshot={snapshot}
+              setSnapshot={setSnapshot}
+              runApi={runApi}
+              callSubmitPass2={callSubmitPass2}
+              callCommit={callCommit}
             />
           )}
           {screen === 12 && (
@@ -499,6 +507,20 @@ export default function DoneHoApp() {
             />
           )}
           </ScreenBoundary>
+          {apiLoading && (
+            <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 fade-in">
+              <div className="bg-[#e8d5a3] border-2 border-[#b87333] rounded-2xl px-5 py-4 flex flex-col items-center gap-2">
+                <BigGear size={44} spin />
+                <div className="text-[11px] text-[#2c1810] font-semibold">Aether is working…</div>
+              </div>
+            </div>
+          )}
+          {apiError && (
+            <div className="absolute bottom-3 left-3 right-3 z-50 bg-[#b83a3a] text-white text-[11px] rounded-xl px-3 py-2 flex items-center justify-between fade-in">
+              <span>{apiError}</span>
+              <button onClick={() => setApiError(null)} className="ml-2 underline">Dismiss</button>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -1106,26 +1128,53 @@ function collectVagueTasks(selectedGoals: string[], tasksPerGoal: Record<string,
   return vague;
 }
 
-function ScreenClarify({ username, selectedGoals, tasksPerGoal, setTasksPerGoal, onDone }: any) {
+function ScreenClarify({ username, selectedGoals, tasksPerGoal, setTasksPerGoal, backendClarifications, onDone }: any) {
   void username;
-  const vague = useMemo(() => collectVagueTasks(selectedGoals, tasksPerGoal), [selectedGoals, tasksPerGoal]);
+
+  // Prefer backend-provided clarifications when present. Fall back to the
+  // local heuristic so the screen still works if the /goals response was empty.
+  const backend: { task_id: string; task_title: string; question: string }[] = backendClarifications ?? [];
+  const useBackend = backend.length > 0;
+
+  const localVague = useMemo(
+    () => (useBackend ? [] : collectVagueTasks(selectedGoals, tasksPerGoal)),
+    [selectedGoals, tasksPerGoal, useBackend]
+  );
+
+  const items = useBackend
+    ? backend.map((b) => ({ id: b.task_id, text: b.task_title, question: b.question, goal: "", index: -1 }))
+    : localVague.map((v) => ({ id: `${v.goal}:${v.index}`, text: v.text, question: v.question, goal: v.goal, index: v.index }));
+
   const [idx, setIdx] = useState(0);
   const [answer, setAnswer] = useState("");
+  const [collected, setCollected] = useState<Record<string, string>>({});
 
-  useEffect(() => { if (vague.length === 0) onDone(); }, []); // eslint-disable-line
+  useEffect(() => { if (items.length === 0) onDone(useBackend ? {} : undefined); }, []); // eslint-disable-line
 
-  if (vague.length === 0) return null;
-  const current = vague[idx];
+  if (items.length === 0) return null;
+  const current = items[idx];
+
+  const advance = (savedAnswers: Record<string, string>) => {
+    setAnswer("");
+    if (idx + 1 >= items.length) onDone(useBackend ? savedAnswers : undefined);
+    else setIdx(idx + 1);
+  };
 
   const submit = () => {
-    if (answer.trim()) {
-      const arr = [...(tasksPerGoal[current.goal] ?? [])];
-      arr[current.index] = `${current.text} (${answer.trim()})`;
-      setTasksPerGoal({ ...tasksPerGoal, [current.goal]: arr });
+    const clean = answer.trim();
+    let nextCollected = collected;
+    if (clean) {
+      if (useBackend) {
+        nextCollected = { ...collected, [current.id]: clean };
+        setCollected(nextCollected);
+      } else if (current.index >= 0) {
+        // Local heuristic path: fold the answer into the task text.
+        const arr = [...(tasksPerGoal[current.goal] ?? [])];
+        arr[current.index] = `${current.text} (${clean})`;
+        setTasksPerGoal({ ...tasksPerGoal, [current.goal]: arr });
+      }
     }
-    setAnswer("");
-    if (idx + 1 >= vague.length) onDone();
-    else setIdx(idx + 1);
+    advance(nextCollected);
   };
 
   return (
@@ -1153,13 +1202,13 @@ function ScreenClarify({ username, selectedGoals, tasksPerGoal, setTasksPerGoal,
           />
         </div>
         <div className="flex items-center gap-2 mt-3">
-          <button onClick={() => { setAnswer(""); if (idx + 1 >= vague.length) onDone(); else setIdx(idx + 1); }}
+          <button onClick={() => advance(collected)}
             className="w-1/3 py-2 rounded-full border-2 border-[#b87333] text-[#2c1810] bg-[#e8d5a3] text-xs">
             Skip
           </button>
           <button onClick={submit} className="btn-copper flex-1 py-2 text-sm">Next →</button>
         </div>
-        <div className="text-center text-[9px] text-[#5a3a20] mt-2">Question {idx + 1} of {vague.length}</div>
+        <div className="text-center text-[9px] text-[#5a3a20] mt-2">Question {idx + 1} of {items.length}</div>
       </div>
     </div>
   );
@@ -1227,7 +1276,13 @@ function getWeekRange(): string {
   return `${fmt(monday)} - ${fmt(sunday)}`;
 }
 
-function computeDistribution(selected: string[], sliders: Record<string, GoalSliders>, totalHours: number, tasks: Record<string, string[]>) {
+function computeDistribution(
+  selected: string[],
+  sliders: Record<string, GoalSliders>,
+  totalHours: number,
+  tasks: Record<string, string[]>,
+  blueprint?: any,
+) {
   const available = Math.max(1, totalHours);
   const weighted: Record<string, number> = {};
   let sum = 0;
@@ -1245,7 +1300,7 @@ function computeDistribution(selected: string[], sliders: Record<string, GoalSli
     const perTask = taskList.length > 0 ? Math.max(10, Math.round((hours * 60) / taskList.length / 5) * 5) : 0;
     result.push({
       goal: g, hours, weighted: weighted[g],
-      tasks: taskList.map((t) => ({ name: t, minutes: perTask, milestones: mockMilestones(t) })),
+      tasks: taskList.map((t) => ({ name: t, minutes: perTask, milestones: milestonesForTask(blueprint, g, t) })),
     });
   });
   result.sort((a, b) => b.weighted - a.weighted);
@@ -1258,14 +1313,18 @@ function Screen8(props: any) {
     totalHoursPerDay, vaultedTasks, onNav, userProfile, aetherInsights, setAetherInsights,
     panelCache, setPanelCache, refinementSeen, setRefinementSeen, refinementNotes, setRefinementNotes,
     regenTick, setRegenTick,
+    sessionId, snapshot, setSnapshot, runApi, callSubmitPass2, callCommit,
   } = props;
 
   const dist = useMemo(
-    () => computeDistribution(selectedGoals, goalSliders, totalHoursPerDay || 5, tasksPerGoal),
+    () => computeDistribution(selectedGoals, goalSliders, totalHoursPerDay || 5, tasksPerGoal, snapshot?.blueprint),
     // regenTick invalidates memo so the visual reshuffle animation re-runs
-    [selectedGoals, goalSliders, totalHoursPerDay, tasksPerGoal, regenTick]
+    [selectedGoals, goalSliders, totalHoursPerDay, tasksPerGoal, regenTick, snapshot]
   );
-  const lifeLoad = useMemo(() => computeLifeLoad(selectedGoals, goalSliders), [selectedGoals, goalSliders]);
+  const lifeLoad = useMemo(
+    () => (typeof snapshot?.lifeload === "number" ? snapshot.lifeload : computeLifeLoad(selectedGoals, goalSliders)),
+    [snapshot, selectedGoals, goalSliders]
+  );
 
   const [panel, setPanel] = useState<string | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
@@ -1429,6 +1488,17 @@ function Screen8(props: any) {
           onClose={() => { setShowRefinement(false); setRefinementSeen(true); }}
           notes={refinementNotes}
           setNotes={setRefinementNotes}
+          onSaved={async (payload: any) => {
+            if (!sessionId || !runApi) return;
+            const pass2 = await runApi(() =>
+              callSubmitPass2({ data: { session_id: sessionId, ...payload } })
+            );
+            if (pass2) setSnapshot(pass2);
+            const committed = await runApi(() =>
+              callCommit({ data: { session_id: sessionId } })
+            );
+            if (committed) setSnapshot(committed);
+          }}
         />
       )}
 
@@ -1508,18 +1578,36 @@ const REFINE_OPTIONS = [
   "Something else affecting my time or energy",
 ];
 
-function Pass2RefinementModal({ onClose, notes, setNotes }: any) {
+function Pass2RefinementModal({ onClose, notes, setNotes, onSaved }: any) {
   const [ticked, setTicked] = useState<string[]>(notes || []);
   const [followUp, setFollowUp] = useState("");
   const [phase, setPhase] = useState<"tick" | "chat">("tick");
   const toggle = (o: string) => setTicked(ticked.includes(o) ? ticked.filter(x => x !== o) : [...ticked, o]);
 
-  const advance = () => {
-    if (ticked.length === 0) { onClose(); return; }
+  const derivePayload = (ticks: string[], text: string) => {
+    // Pull the first number out of the free-text answer as an hours estimate.
+    const m = text.match(/(\d+(?:\.\d+)?)/);
+    const hrs = m ? parseFloat(m[1]) : 0;
+    const isCare = ticks.some((t) => /caregiv|childcare|eldercare/i.test(t));
+    const isEvent = ticks.some((t) => /event/i.test(t));
+    return {
+      caregiving_hours: isCare ? hrs : 0,
+      planned_event_hours: isEvent ? hrs : 0,
+      other_time_constraint_hours: !isCare && !isEvent ? hrs : 0,
+    };
+  };
+
+  const advance = async () => {
+    if (ticked.length === 0) {
+      if (onSaved) await onSaved({ caregiving_hours: 0, planned_event_hours: 0, other_time_constraint_hours: 0 });
+      onClose();
+      return;
+    }
     setPhase("chat");
   };
-  const submitFollowUp = () => {
+  const submitFollowUp = async () => {
     setNotes([...(notes || []), ...ticked, followUp.trim()].filter(Boolean));
+    if (onSaved) await onSaved(derivePayload(ticked, followUp));
     onClose();
   };
 
