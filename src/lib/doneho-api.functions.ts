@@ -105,7 +105,7 @@ export const reportDisruption = createServerFn({ method: "POST" })
 			.object({
 				session_id: z.string(),
 				description: z.string(),
-				direction: z.enum(["LOSS", "GAIN"]).optional(),
+				direction: z.enum(["loss", "gain"]).optional(),
 			})
 			.parse(data)
 	)

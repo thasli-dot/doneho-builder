@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, Component, type ReactNode } from 
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
 import { chatWithAether, getAetherInsight } from "@/lib/aether.functions";
-import { startSession, submitGoals, submitClarifications, submitPass2, commitBlueprint, reportDisruption, approveDisruption, getDayOutputChecklist, submitDayOutput, triggerLifeHappened, regenerateNudges, chatWithAetherBackend, getAetherTip } from "@/lib/doneho-api.functions";
+import { startSession, submitGoals, submitClarifications, submitPass2, commitBlueprint, reportDisruption, approveDisruption, getDayOutputChecklist, submitDayOutput, triggerLifeHappened, regenerateNudges, chatWithAetherBackend, getAetherTip, getState } from "@/lib/doneho-api.functions";
 
 // Screen-level safety net — if any screen throws, show a small retry card
 // instead of bubbling to the root "This page didn't load" boundary.
@@ -287,7 +287,7 @@ export default function DoneHoApp() {
   const [regenTick, setRegenTick] = useState(0); // bumps to force blueprint reshuffle animation
   const [hydrated, setHydrated] = useState(false);
 
-  // ==== Backend session state (DoneHo API on Render) ====
+  // ==== Backend session state (DoneHo API on Render) =====
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [snapshot, setSnapshot] = useState<any>(null);
   const [backendClarifications, setBackendClarifications] = useState<
@@ -308,6 +308,7 @@ export default function DoneHoApp() {
   const callLifeHappened = useServerFn(triggerLifeHappened);
   const callRegenerateNudges = useServerFn(regenerateNudges);
   const callAetherChatBackend = useServerFn(chatWithAetherBackend);
+  const callGetState = useServerFn(getState);
   const callGetAetherTip = useServerFn(getAetherTip);
 
   async function runApi<T>(fn: () => Promise<T>): Promise<T | null> {
@@ -324,26 +325,41 @@ export default function DoneHoApp() {
     }
   }
 
-  // Load persisted snapshot — if user already committed a Blueprint, land straight on the Dashboard.
+  // Load persisted snapshot — if user already committed a Blueprint, verify the
+  // session is still alive on the backend (Render's free tier can wipe it),
+  // then land straight on the Dashboard. If the backend says it's gone,
+  // fall back to onboarding rather than showing a broken, session-less Dashboard.
   useEffect(() => {
-    try {
-      const raw = typeof window !== "undefined" ? window.localStorage.getItem("doneho_snapshot_v1") : null;
-      if (raw) {
-        const s = JSON.parse(raw);
-        if (s?.committed) {
-          setUsername(s.username ?? "");
-          setProfession(s.profession ?? "");
-          setSelectedGoals(s.selectedGoals ?? []);
-          setAllGoals(s.allGoals ?? DEFAULT_GOALS);
-          setGoalSliders(s.goalSliders ?? {});
-          setTotalHoursPerDay(s.totalHoursPerDay ?? 5);
-          setTasksPerGoal(s.tasksPerGoal ?? {});
-          setUserProfile(s.userProfile ?? {});
-          setScreen(8);
+    (async () => {
+      try {
+        const raw = typeof window !== "undefined" ? window.localStorage.getItem("doneho_snapshot_v1") : null;
+        if (raw) {
+          const s = JSON.parse(raw);
+          if (s?.committed && s?.sessionId) {
+            try {
+              const liveState = await callGetState({ data: { session_id: s.sessionId } });
+              setUsername(s.username ?? "");
+              setProfession(s.profession ?? "");
+              setSelectedGoals(s.selectedGoals ?? []);
+              setAllGoals(s.allGoals ?? DEFAULT_GOALS);
+              setGoalSliders(s.goalSliders ?? {});
+              setTotalHoursPerDay(s.totalHoursPerDay ?? 5);
+              setTasksPerGoal(s.tasksPerGoal ?? {});
+              setUserProfile(s.userProfile ?? {});
+              setSessionId(s.sessionId);
+              setSnapshot(liveState);
+              setScreen(8);
+            } catch {
+              // Backend session is gone (server restarted, or genuinely expired).
+              // Clear the stale local copy so this doesn't loop forever, and
+              // let the user start fresh from onboarding instead.
+              window.localStorage.removeItem("doneho_snapshot_v1");
+            }
+          }
         }
-      }
-    } catch {}
-    setHydrated(true);
+      } catch {}
+      setHydrated(true);
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -351,14 +367,16 @@ export default function DoneHoApp() {
   useEffect(() => {
     if (!hydrated) return;
     if (screen < 8) return;
+    if (!sessionId) return;
     try {
       window.localStorage.setItem("doneho_snapshot_v1", JSON.stringify({
         committed: true,
+        sessionId,
         username, profession, selectedGoals, allGoals, goalSliders,
         totalHoursPerDay, tasksPerGoal, userProfile,
       }));
     } catch {}
-  }, [hydrated, screen, username, profession, selectedGoals, allGoals, goalSliders, totalHoursPerDay, tasksPerGoal, userProfile]);
+  }, [hydrated, screen, sessionId, username, profession, selectedGoals, allGoals, goalSliders, totalHoursPerDay, tasksPerGoal, userProfile]);
 
   const goNext = (n: number) => { setScreen(n); if (typeof window !== "undefined") window.scrollTo(0, 0); };
 
@@ -1023,7 +1041,6 @@ function Screen6({ username, selectedGoals, goalSliders, totalHoursPerDay, setTo
     pct < 100 ? "Almost there. One task per goal is enough." :
     `Ready ${username}! Tap Aetherize.`;
 
-  // Slider position → filled band styling
   const bandPct = ((REC_MAX - REC_MIN) / (REC_MAX - REC_MIN)) * 100;
 
   return (
@@ -1035,7 +1052,6 @@ function Screen6({ username, selectedGoals, goalSliders, totalHoursPerDay, setTo
       <h2 className="font-serif-d text-[18px] font-bold text-[#2c1810] mt-2">Your hours this week</h2>
       <p className="text-[10px] text-[#5a3a20]">Recommended: {REC_MIN}–{REC_MAX} hrs/day. I'll shape the plan around this.</p>
 
-      {/* Constrained recommended-range slider */}
       <div className="mt-2 bg-[#e8d5a3] border border-[#b87333] rounded-xl p-2">
         <div className="flex items-center justify-between text-[10px] text-[#2c1810] font-semibold">
           <span>Daily focus hours</span>
@@ -1181,8 +1197,6 @@ function collectVagueTasks(selectedGoals: string[], tasksPerGoal: Record<string,
 function ScreenClarify({ username, selectedGoals, tasksPerGoal, setTasksPerGoal, backendClarifications, onDone }: any) {
   void username;
 
-  // Prefer backend-provided clarifications when present. Fall back to the
-  // local heuristic so the screen still works if the /goals response was empty.
   const backend: { task_id: string; task_title: string; question: string }[] = backendClarifications ?? [];
   const useBackend = backend.length > 0;
 
@@ -1218,7 +1232,6 @@ function ScreenClarify({ username, selectedGoals, tasksPerGoal, setTasksPerGoal,
         nextCollected = { ...collected, [current.id]: clean };
         setCollected(nextCollected);
       } else if (current.index >= 0) {
-        // Local heuristic path: fold the answer into the task text.
         const arr = [...(tasksPerGoal[current.goal] ?? [])];
         arr[current.index] = `${current.text} (${clean})`;
         setTasksPerGoal({ ...tasksPerGoal, [current.goal]: arr });
@@ -1369,7 +1382,6 @@ function Screen8(props: any) {
 
   const dist = useMemo(
     () => computeDistribution(selectedGoals, goalSliders, totalHoursPerDay || 5, tasksPerGoal, snapshot?.blueprint),
-    // regenTick invalidates memo so the visual reshuffle animation re-runs
     [selectedGoals, goalSliders, totalHoursPerDay, tasksPerGoal, regenTick, snapshot]
   );
   const lifeLoad = useMemo(
@@ -1384,14 +1396,12 @@ function Screen8(props: any) {
   const [expandedTasks, setExpandedTasks] = useState<Record<string, boolean>>({});
   const toggleTask = (key: string) => setExpandedTasks((p) => ({ ...p, [key]: !p[key] }));
 
-
-  // Disruption panel
   const [disruption, setDisruption] = useState("");
   const [disruptionMsg, setDisruptionMsg] = useState<string | null>(null);
   const [pendingApproval, setPendingApproval] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  const [loadTrend, setLoadTrend] = useState(false); // reserved for future
+  const [loadTrend, setLoadTrend] = useState(false);
   void loadTrend;
 
   const submitDisruption = async () => {
@@ -1399,10 +1409,10 @@ function Screen8(props: any) {
     setRefreshing(true);
     setPendingApproval(false);
     const result: any = await runApi(() =>
-      callReportDisruption({ data: { session_id: sessionId, description: disruption.trim(), direction: "LOSS" } })
+      callReportDisruption({ data: { session_id: sessionId, description: disruption.trim(), direction: "loss" } })
     );
     setRefreshing(false);
-    if (!result) return; // runApi already set apiError
+    if (!result) return;
     setSnapshot(result);
     setPanelCache({});
     setRegenTick((t: number) => t + 1);
@@ -1458,7 +1468,6 @@ function Screen8(props: any) {
         <div className="flex-1 text-right text-[10px] bg-[#b87333] text-white rounded-full px-2 py-0.5">{getWeekRange()}</div>
       </div>
 
-      {/* Disruption input */}
       <div className="px-3 mt-2">
         <div className="bg-[#2d4a1e] rounded-xl p-2 flex items-center gap-2">
           <span className="text-lg">🌩️</span>
@@ -1481,7 +1490,6 @@ function Screen8(props: any) {
         )}
       </div>
 
-      {/* Placeholder widget row */}
       <div className="px-3 mt-2 grid grid-cols-3 gap-2">
         <PlaceholderCard title="Life Load Trend" body={<MiniTrend />} tag="mock" />
         <PlaceholderCard title="Current Focus" body={
@@ -1618,7 +1626,6 @@ function Screen8(props: any) {
           onClose={() => setModifyOpen(false)}
           onTasksChanged={(next: Record<string, string[]>) => {
             setTasksPerGoal(next);
-            // Task-only edit: only Blueprint refreshes, LifeLoad stays put.
             setRefreshing(true);
             setRegenTick((t: number) => t + 1);
             setPanelCache({});
@@ -1627,7 +1634,6 @@ function Screen8(props: any) {
           onGoalsChanged={(nextGoals: string[], nextSliders: Record<string, GoalSliders>) => {
             setSelectedGoals(nextGoals);
             setGoalSliders(nextSliders);
-            // Goal add/remove: Blueprint AND LifeLoad recalculate visibly.
             setRefreshing(true);
             setRegenTick((t: number) => t + 1);
             setPanelCache({});
@@ -1692,7 +1698,6 @@ function Pass2RefinementModal({ onClose, notes, setNotes, onSaved }: any) {
   const toggle = (o: string) => setTicked(ticked.includes(o) ? ticked.filter(x => x !== o) : [...ticked, o]);
 
   const derivePayload = (ticks: string[], text: string) => {
-    // Pull the first number out of the free-text answer as an hours estimate.
     const m = text.match(/(\d+(?:\.\d+)?)/);
     const hrs = m ? parseFloat(m[1]) : 0;
     const isCare = ticks.some((t) => /caregiv|childcare|eldercare/i.test(t));
@@ -2333,7 +2338,6 @@ function Screen13({ username, profession, userProfile, setUserProfile, selectedG
         </div>
       </div>
 
-      {/* Optional demographic fields — clearly separate, non-blocking */}
       <div className="px-4 mt-4">
         <div className="bg-[#e8d5a3]/60 border border-dashed border-[#b87333] rounded-xl p-3">
           <div className="flex items-center justify-between">
