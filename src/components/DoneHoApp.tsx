@@ -1,27 +1,56 @@
 import { useState, useEffect, useRef, useMemo, Component, type ReactNode } from "react";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
+import { usePostHog } from "posthog-js/react";
 import { chatWithAether, getAetherInsight } from "@/lib/aether.functions";
-import { startSession, submitGoals, submitClarifications, submitPass2, commitBlueprint, reportDisruption, approveDisruption, getDayOutputChecklist, submitDayOutput, triggerLifeHappened, regenerateNudges, chatWithAetherBackend, getAetherTip, getState } from "@/lib/doneho-api.functions";
+import {
+  startSession,
+  submitGoals,
+  submitClarifications,
+  submitPass2,
+  commitBlueprint,
+  reportDisruption,
+  approveDisruption,
+  getDayOutputChecklist,
+  submitDayOutput,
+  triggerLifeHappened,
+  regenerateNudges,
+  chatWithAetherBackend,
+  getAetherTip,
+  getState,
+} from "@/lib/doneho-api.functions";
 
 // Screen-level safety net — if any screen throws, show a small retry card
 // instead of bubbling to the root "This page didn't load" boundary.
-class ScreenBoundary extends Component<{ onReset: () => void; children: ReactNode }, { err: Error | null }> {
+class ScreenBoundary extends Component<
+  { onReset: () => void; children: ReactNode },
+  { err: Error | null }
+> {
   state = { err: null as Error | null };
-  static getDerivedStateFromError(err: Error) { return { err }; }
-  componentDidCatch(err: Error) { console.error("Screen render error:", err); }
+  static getDerivedStateFromError(err: Error) {
+    return { err };
+  }
+  componentDidCatch(err: Error) {
+    console.error("Screen render error:", err);
+  }
   render() {
     if (this.state.err) {
       return (
         <div className="p-6 flex flex-col items-center justify-center min-h-full text-center">
           <div className="text-3xl">⚙️</div>
-          <h3 className="font-serif-d text-[16px] font-bold text-[#2c1810] mt-2">Aether is recalibrating</h3>
+          <h3 className="font-serif-d text-[16px] font-bold text-[#2c1810] mt-2">
+            Aether is recalibrating
+          </h3>
           <p className="text-[11px] text-[#5a3a20] mt-1 max-w-[260px]">
-            Something tripped a gear on this screen. Your progress is safe — tap below to keep going.
+            Something tripped a gear on this screen. Your progress is safe — tap below to keep
+            going.
           </p>
           <button
             className="btn-copper mt-4 px-4 py-2 text-xs"
-            onClick={() => { this.setState({ err: null }); this.props.onReset(); }}
+            onClick={() => {
+              this.setState({ err: null });
+              this.props.onReset();
+            }}
           >
             Try again
           </button>
@@ -32,11 +61,19 @@ class ScreenBoundary extends Component<{ onReset: () => void; children: ReactNod
   }
 }
 
-
 // ============ TYPES ============
 type GoalKey = string;
-interface GoalSliders { volatility: number; traffic: number; }
-interface TaskItem { id: string; goal: string; name: string; minutes: number; done: boolean; }
+interface GoalSliders {
+  volatility: number;
+  traffic: number;
+}
+interface TaskItem {
+  id: string;
+  goal: string;
+  name: string;
+  minutes: number;
+  done: boolean;
+}
 
 // ============ CONSTANTS ============
 // The 10 official goal categories from the frozen build brief
@@ -108,15 +145,20 @@ function milestonesForTask(blueprint: any, goal: string, task: string): Mileston
     const g = blueprint[goal] ?? blueprint?.goals?.[goal];
     const t = g?.[task] ?? g?.tasks?.[task];
     const raw = Array.isArray(t) ? t : Array.isArray(t?.milestones) ? t.milestones : [];
-    return (raw as any[]).map((m) =>
-      typeof m === "string"
-        ? { title: m, hours: 0, completed: false }
-        : { title: String(m?.title ?? ""), hours: Number(m?.expected_hours ?? 0), completed: Boolean(m?.completed) }
-    ).filter((m) => m.title);
+    return (raw as any[])
+      .map((m) =>
+        typeof m === "string"
+          ? { title: m, hours: 0, completed: false }
+          : {
+              title: String(m?.title ?? ""),
+              hours: Number(m?.expected_hours ?? 0),
+              completed: Boolean(m?.completed),
+            },
+      )
+      .filter((m) => m.title);
   } catch {}
   return [];
 }
-
 
 function focusFor(sliders: GoalSliders | undefined) {
   const combined = (sliders?.traffic ?? 5) + (sliders?.volatility ?? 5);
@@ -132,7 +174,8 @@ function Logo({ size = 28 }: { size?: number }) {
       <div
         className="relative flex items-center justify-center rounded-full"
         style={{
-          width: size, height: size,
+          width: size,
+          height: size,
           background: "radial-gradient(circle, #d4a843, #b87333 60%, #8a5424)",
           border: "2px solid #6b3f1a",
         }}
@@ -146,9 +189,22 @@ function Logo({ size = 28 }: { size?: number }) {
   );
 }
 
-function BigGear({ size = 80, spin = false, rev = false }: { size?: number; spin?: boolean; rev?: boolean }) {
+function BigGear({
+  size = 80,
+  spin = false,
+  rev = false,
+}: {
+  size?: number;
+  spin?: boolean;
+  rev?: boolean;
+}) {
   return (
-    <svg width={size} height={size} viewBox="0 0 100 100" className={spin ? (rev ? "gear-spin-rev" : "gear-spin") : ""}>
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 100 100"
+      className={spin ? (rev ? "gear-spin-rev" : "gear-spin") : ""}
+    >
       <defs>
         <radialGradient id="cg" cx="50%" cy="40%">
           <stop offset="0%" stopColor="#e8b85a" />
@@ -161,12 +217,23 @@ function BigGear({ size = 80, spin = false, rev = false }: { size?: number; spin
           const a = (i * 30 * Math.PI) / 180;
           const x = 50 + Math.cos(a) * 42;
           const y = 50 + Math.sin(a) * 42;
-          return <rect key={i} x={x - 5} y={y - 5} width="10" height="10" transform={`rotate(${i * 30} ${x} ${y})`} />;
+          return (
+            <rect
+              key={i}
+              x={x - 5}
+              y={y - 5}
+              width="10"
+              height="10"
+              transform={`rotate(${i * 30} ${x} ${y})`}
+            />
+          );
         })}
         <circle cx="50" cy="50" r="35" />
       </g>
       <circle cx="50" cy="50" r="12" fill="#2d4a1e" stroke="#6b3f1a" strokeWidth="1.5" />
-      <text x="50" y="58" textAnchor="middle" fontSize="18" fill="#d4a843" fontWeight="900">✓</text>
+      <text x="50" y="58" textAnchor="middle" fontSize="18" fill="#d4a843" fontWeight="900">
+        ✓
+      </text>
     </svg>
   );
 }
@@ -176,7 +243,8 @@ function Aether({ size = 44 }: { size?: number }) {
     <div
       className="relative flex items-center justify-center rounded-full shrink-0"
       style={{
-        width: size, height: size,
+        width: size,
+        height: size,
         background: "radial-gradient(circle at 35% 35%, #d4a843, #b87333 70%, #6b3f1a)",
         border: "2px solid #6b3f1a",
       }}
@@ -224,7 +292,9 @@ function AetherProactiveInsight({ screenName, userData, cache, setCache }: any) 
     }
   };
 
-  useEffect(() => { load(); }, [screenName, JSON.stringify(userData)]);
+  useEffect(() => {
+    load();
+  }, [screenName, JSON.stringify(userData)]);
 
   return (
     <div className="flex items-start gap-2 mt-2 fade-in">
@@ -235,7 +305,12 @@ function AetherProactiveInsight({ screenName, userData, cache, setCache }: any) 
         ) : (
           <div className="text-[10px] text-[#2c1810] pr-4">{insight}</div>
         )}
-        <button onClick={() => load(true)} className="absolute top-1 right-1 text-[#b87333] hover:text-[#8a5424] text-xs">↻</button>
+        <button
+          onClick={() => load(true)}
+          className="absolute top-1 right-1 text-[#b87333] hover:text-[#8a5424] text-xs"
+        >
+          ↻
+        </button>
       </div>
     </div>
   );
@@ -247,20 +322,22 @@ function AetherProactiveInsight({ screenName, userData, cache, setCache }: any) 
 // the Dashboard uses snapshot.lifeload directly instead of this function.
 function computeLifeLoad(selected: string[], sliders: Record<string, GoalSliders>): number {
   if (selected.length === 0) return 0;
-  let vSum = 0, tSum = 0;
+  let vSum = 0,
+    tSum = 0;
   selected.forEach((g) => {
     const s = sliders[g] ?? { volatility: 5, traffic: 5 };
     vSum += s.volatility;
     tSum += s.traffic;
   });
-  const avgV = (vSum / selected.length) / 10;
-  const avgT = (tSum / selected.length) / 10;
+  const avgV = vSum / selected.length / 10;
+  const avgT = tSum / selected.length / 10;
   const load = 100 * (0.5 * avgT + 0.5 * avgV);
   return Math.round(load * 10) / 10;
 }
 
 // ============ MAIN APP ============
 export default function DoneHoApp() {
+  const posthog = usePostHog();
   const [screen, setScreen] = useState<number>(1);
   const [username, setUsername] = useState<string>("");
   const [profession, setProfession] = useState<string>("");
@@ -275,10 +352,14 @@ export default function DoneHoApp() {
     carriedFromLastWeek: 0,
     totalAvailable: 3.5,
     usedThisWeek: 0,
-    history: [] as string[]
+    history: [] as string[],
   });
   const [planningLag, setPlanningLag] = useState({ tasks: [] as string[], totalMins: 0 });
-  const [userProfile, setUserProfile] = useState<{ age?: string; gender?: string; location?: string }>({});
+  const [userProfile, setUserProfile] = useState<{
+    age?: string;
+    gender?: string;
+    location?: string;
+  }>({});
   const [aetherInsights, setAetherInsights] = useState<Record<string, string>>({});
   const [panelCache, setPanelCache] = useState<Record<string, any>>({});
   const [vaultedTasks, setVaultedTasks] = useState<string[]>([]);
@@ -332,7 +413,8 @@ export default function DoneHoApp() {
   useEffect(() => {
     (async () => {
       try {
-        const raw = typeof window !== "undefined" ? window.localStorage.getItem("doneho_snapshot_v1") : null;
+        const raw =
+          typeof window !== "undefined" ? window.localStorage.getItem("doneho_snapshot_v1") : null;
         if (raw) {
           const s = JSON.parse(raw);
           if (s?.committed && s?.sessionId) {
@@ -349,6 +431,12 @@ export default function DoneHoApp() {
               setSessionId(s.sessionId);
               setSnapshot(liveState);
               setScreen(8);
+              if (s.username) {
+                posthog.identify(s.sessionId, {
+                  username: s.username,
+                  profession: s.profession ?? "",
+                });
+              }
             } catch {
               // Backend session is gone (server restarted, or genuinely expired).
               // Clear the stale local copy so this doesn't loop forever, and
@@ -369,206 +457,254 @@ export default function DoneHoApp() {
     if (screen < 8) return;
     if (!sessionId) return;
     try {
-      window.localStorage.setItem("doneho_snapshot_v1", JSON.stringify({
-        committed: true,
-        sessionId,
-        username, profession, selectedGoals, allGoals, goalSliders,
-        totalHoursPerDay, tasksPerGoal, userProfile,
-      }));
+      window.localStorage.setItem(
+        "doneho_snapshot_v1",
+        JSON.stringify({
+          committed: true,
+          sessionId,
+          username,
+          profession,
+          selectedGoals,
+          allGoals,
+          goalSliders,
+          totalHoursPerDay,
+          tasksPerGoal,
+          userProfile,
+        }),
+      );
     } catch {}
-  }, [hydrated, screen, sessionId, username, profession, selectedGoals, allGoals, goalSliders, totalHoursPerDay, tasksPerGoal, userProfile]);
+  }, [
+    hydrated,
+    screen,
+    sessionId,
+    username,
+    profession,
+    selectedGoals,
+    allGoals,
+    goalSliders,
+    totalHoursPerDay,
+    tasksPerGoal,
+    userProfile,
+  ]);
 
-  const goNext = (n: number) => { setScreen(n); if (typeof window !== "undefined") window.scrollTo(0, 0); };
+  const goNext = (n: number) => {
+    setScreen(n);
+    if (typeof window !== "undefined") window.scrollTo(0, 0);
+  };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center" style={{ background: "#1a1410" }}>
+    <div
+      className="min-h-screen w-full flex items-center justify-center"
+      style={{ background: "#1a1410" }}
+    >
       <div
         className="parchment-bg relative overflow-hidden shadow-2xl"
-        style={{ width: 375, height: 812, boxShadow: "0 30px 80px rgba(0,0,0,0.6), 0 0 0 1px #6b3f1a" }}
+        style={{
+          width: 375,
+          height: 812,
+          boxShadow: "0 30px 80px rgba(0,0,0,0.6), 0 0 0 1px #6b3f1a",
+        }}
       >
         <div key={screen} className="fade-in w-full h-full overflow-y-auto thin-scroll">
           <ScreenBoundary onReset={() => setScreen(8)}>
-          {screen === 1 && <Screen1 onJoin={(u) => { setUsername(u); goNext(3); }} onLogin={() => goNext(2)} />}
-          {screen === 2 && <Screen2 onVerified={() => goNext(3)} onSignup={() => goNext(1)} />}
-          {screen === 3 && (
-            <Screen3Chat
-              seedName={username}
-              onDone={async (name, prof) => {
-                setUsername(name);
-                setProfession(prof);
-                const res = await runApi(() =>
-                  callStartSession({ data: { name, profession: prof } })
-                );
-                if (res?.session_id) {
-                  setSessionId(res.session_id);
-                  goNext(4);
-                }
-              }}
-            />
-          )}
-          {screen === 4 && (
-            <Screen4
-              username={username}
-              allGoals={allGoals}
-              setAllGoals={setAllGoals}
-              selectedGoals={selectedGoals}
-              setSelectedGoals={setSelectedGoals}
-              onGenerate={() => {
-                const sliders: Record<string, GoalSliders> = { ...goalSliders };
-                selectedGoals.forEach((g) => {
-                  if (!sliders[g]) sliders[g] = GOAL_DEFAULTS[g] ?? { volatility: 5, traffic: 5 };
-                });
-                setGoalSliders(sliders);
-                goNext(5);
-              }}
-              userProfile={userProfile}
-              aetherInsights={aetherInsights}
-              setAetherInsights={setAetherInsights}
-            />
-          )}
-          {screen === 5 && (
-            <Screen5
-              username={username}
-              selectedGoals={selectedGoals}
-              goalSliders={goalSliders}
-              setGoalSliders={setGoalSliders}
-              onActivate={() => goNext(6)}
-              onModify={() => goNext(4)}
-              userProfile={userProfile}
-              aetherInsights={aetherInsights}
-              setAetherInsights={setAetherInsights}
-            />
-          )}
-          {screen === 6 && (
-            <Screen6
-              username={username}
-              selectedGoals={selectedGoals}
-              goalSliders={goalSliders}
-              totalHoursPerDay={totalHoursPerDay}
-              setTotalHoursPerDay={setTotalHoursPerDay}
-              tasksPerGoal={tasksPerGoal}
-              setTasksPerGoal={setTasksPerGoal}
-              onAetherize={async () => {
-                if (!sessionId) { setApiError("Session missing — please restart."); return; }
-                // Build the backend payload from local onboarding state.
-                const goalsPayload = selectedGoals.map((g) => {
-                  const s = goalSliders[g] ?? GOAL_DEFAULTS[g] ?? { volatility: 5, traffic: 5 };
-                  const tasks = (tasksPerGoal[g] ?? [])
-                    .map((t) => t.trim())
-                    .filter(Boolean)
-                    .map((title) => ({ title, is_flexible: true }));
-                  return { category: g, traffic: s.traffic / 10, volatility: s.volatility / 10, tasks };
-                });
-                const res = await runApi(() =>
-                  callSubmitGoals({ data: { session_id: sessionId, goals: goalsPayload } })
-                );
-                if (!res) return;
-                if (res.pending_clarifications && res.pending_clarifications.length > 0) {
-                  setBackendClarifications(res.pending_clarifications);
-                  goNext(65);
-                } else {
-                  setBackendClarifications([]);
-                  goNext(7);
-                }
-              }}
-              aetherInsights={aetherInsights}
-              setAetherInsights={setAetherInsights}
-            />
-          )}
-          {screen === 65 && (
-            <ScreenClarify
-              username={username}
-              selectedGoals={selectedGoals}
-              tasksPerGoal={tasksPerGoal}
-              setTasksPerGoal={setTasksPerGoal}
-              backendClarifications={backendClarifications}
-              onDone={async (answers: Record<string, string> | undefined) => {
-                if (backendClarifications.length > 0 && sessionId && answers) {
-                  await runApi(() =>
-                    callSubmitClarifications({ data: { session_id: sessionId, answers } })
+            {screen === 1 && (
+              <Screen1
+                onJoin={(u) => {
+                  setUsername(u);
+                  goNext(3);
+                }}
+                onLogin={() => goNext(2)}
+              />
+            )}
+            {screen === 2 && <Screen2 onVerified={() => goNext(3)} onSignup={() => goNext(1)} />}
+            {screen === 3 && (
+              <Screen3Chat
+                seedName={username}
+                onDone={async (name, prof) => {
+                  setUsername(name);
+                  setProfession(prof);
+                  const res = await runApi(() =>
+                    callStartSession({ data: { name, profession: prof } }),
                   );
-                }
-                goNext(7);
-              }}
-            />
-          )}
-          {screen === 7 && <Screen7 username={username} onContinue={() => goNext(8)} />}
-          {screen === 8 && (
-            <Screen8
-              username={username}
-              selectedGoals={selectedGoals}
-              goalSliders={goalSliders}
-              tasksPerGoal={tasksPerGoal}
-              setTasksPerGoal={setTasksPerGoal}
-              setSelectedGoals={setSelectedGoals}
-              setGoalSliders={setGoalSliders}
-              totalHoursPerDay={totalHoursPerDay}
-              vaultedTasks={vaultedTasks}
-              onNav={(s: number) => goNext(s)}
-              userProfile={userProfile}
-              aetherInsights={aetherInsights}
-              setAetherInsights={setAetherInsights}
-              panelCache={panelCache}
-              setPanelCache={setPanelCache}
-              refinementSeen={refinementSeen}
-              setRefinementSeen={setRefinementSeen}
-              refinementNotes={refinementNotes}
-              setRefinementNotes={setRefinementNotes}
-              regenTick={regenTick}
-              setRegenTick={setRegenTick}
-              sessionId={sessionId}
-              snapshot={snapshot}
-              setSnapshot={setSnapshot}
-              runApi={runApi}
-              callSubmitPass2={callSubmitPass2}
-              callCommit={callCommit}
-              callReportDisruption={callReportDisruption}
-              callApproveDisruption={callApproveDisruption}
-              callRegenerateNudges={callRegenerateNudges}
-              callAetherChatBackend={callAetherChatBackend}
-              callGetAetherTip={callGetAetherTip}
-            />
-          )}
-          {screen === 12 && (
-            <Screen12
-              username={username}
-              selectedGoals={selectedGoals}
-              goalSliders={goalSliders}
-              tasksPerGoal={tasksPerGoal}
-              totalHoursPerDay={totalHoursPerDay}
-              resilienceScore={resilienceScore}
-              setResilienceScore={setResilienceScore}
-              reservePool={reservePool}
-              setReservePool={setReservePool}
-              planningLag={planningLag}
-              setPlanningLag={setPlanningLag}
-              vaultedTasks={vaultedTasks}
-              setVaultedTasks={setVaultedTasks}
-              onNav={(s: number) => goNext(s)}
-              userProfile={userProfile}
-              aetherInsights={aetherInsights}
-              setAetherInsights={setAetherInsights}
-              sessionId={sessionId}
-              snapshot={snapshot}
-              setSnapshot={setSnapshot}
-              runApi={runApi}
-              callGetChecklist={callGetChecklist}
-              callSubmitDayOutput={callSubmitDayOutput}
-              callLifeHappened={callLifeHappened}
-              callAetherChatBackend={callAetherChatBackend}
-            />
-          )}
-          {screen === 13 && (
-            <Screen13
-              username={username}
-              profession={profession}
-              userProfile={userProfile}
-              setUserProfile={setUserProfile}
-              selectedGoals={selectedGoals}
-              vaultedTasks={vaultedTasks}
-              onNav={(s: number) => goNext(s)}
-            />
-          )}
+                  if (res?.session_id) {
+                    setSessionId(res.session_id);
+                    posthog.identify(res.session_id, { username: name, profession: prof });
+                    goNext(4);
+                  }
+                }}
+              />
+            )}
+            {screen === 4 && (
+              <Screen4
+                username={username}
+                allGoals={allGoals}
+                setAllGoals={setAllGoals}
+                selectedGoals={selectedGoals}
+                setSelectedGoals={setSelectedGoals}
+                onGenerate={() => {
+                  const sliders: Record<string, GoalSliders> = { ...goalSliders };
+                  selectedGoals.forEach((g) => {
+                    if (!sliders[g]) sliders[g] = GOAL_DEFAULTS[g] ?? { volatility: 5, traffic: 5 };
+                  });
+                  setGoalSliders(sliders);
+                  goNext(5);
+                }}
+                userProfile={userProfile}
+                aetherInsights={aetherInsights}
+                setAetherInsights={setAetherInsights}
+              />
+            )}
+            {screen === 5 && (
+              <Screen5
+                username={username}
+                selectedGoals={selectedGoals}
+                goalSliders={goalSliders}
+                setGoalSliders={setGoalSliders}
+                onActivate={() => goNext(6)}
+                onModify={() => goNext(4)}
+                userProfile={userProfile}
+                aetherInsights={aetherInsights}
+                setAetherInsights={setAetherInsights}
+              />
+            )}
+            {screen === 6 && (
+              <Screen6
+                username={username}
+                selectedGoals={selectedGoals}
+                goalSliders={goalSliders}
+                totalHoursPerDay={totalHoursPerDay}
+                setTotalHoursPerDay={setTotalHoursPerDay}
+                tasksPerGoal={tasksPerGoal}
+                setTasksPerGoal={setTasksPerGoal}
+                onAetherize={async () => {
+                  if (!sessionId) {
+                    setApiError("Session missing — please restart.");
+                    return;
+                  }
+                  // Build the backend payload from local onboarding state.
+                  const goalsPayload = selectedGoals.map((g) => {
+                    const s = goalSliders[g] ?? GOAL_DEFAULTS[g] ?? { volatility: 5, traffic: 5 };
+                    const tasks = (tasksPerGoal[g] ?? [])
+                      .map((t) => t.trim())
+                      .filter(Boolean)
+                      .map((title) => ({ title, is_flexible: true }));
+                    return {
+                      category: g,
+                      traffic: s.traffic / 10,
+                      volatility: s.volatility / 10,
+                      tasks,
+                    };
+                  });
+                  const res = await runApi(() =>
+                    callSubmitGoals({ data: { session_id: sessionId, goals: goalsPayload } }),
+                  );
+                  if (!res) return;
+                  if (res.pending_clarifications && res.pending_clarifications.length > 0) {
+                    setBackendClarifications(res.pending_clarifications);
+                    goNext(65);
+                  } else {
+                    setBackendClarifications([]);
+                    goNext(7);
+                  }
+                }}
+                aetherInsights={aetherInsights}
+                setAetherInsights={setAetherInsights}
+              />
+            )}
+            {screen === 65 && (
+              <ScreenClarify
+                username={username}
+                selectedGoals={selectedGoals}
+                tasksPerGoal={tasksPerGoal}
+                setTasksPerGoal={setTasksPerGoal}
+                backendClarifications={backendClarifications}
+                onDone={async (answers: Record<string, string> | undefined) => {
+                  if (backendClarifications.length > 0 && sessionId && answers) {
+                    await runApi(() =>
+                      callSubmitClarifications({ data: { session_id: sessionId, answers } }),
+                    );
+                  }
+                  goNext(7);
+                }}
+              />
+            )}
+            {screen === 7 && <Screen7 username={username} onContinue={() => goNext(8)} />}
+            {screen === 8 && (
+              <Screen8
+                username={username}
+                selectedGoals={selectedGoals}
+                goalSliders={goalSliders}
+                tasksPerGoal={tasksPerGoal}
+                setTasksPerGoal={setTasksPerGoal}
+                setSelectedGoals={setSelectedGoals}
+                setGoalSliders={setGoalSliders}
+                totalHoursPerDay={totalHoursPerDay}
+                vaultedTasks={vaultedTasks}
+                onNav={(s: number) => goNext(s)}
+                userProfile={userProfile}
+                aetherInsights={aetherInsights}
+                setAetherInsights={setAetherInsights}
+                panelCache={panelCache}
+                setPanelCache={setPanelCache}
+                refinementSeen={refinementSeen}
+                setRefinementSeen={setRefinementSeen}
+                refinementNotes={refinementNotes}
+                setRefinementNotes={setRefinementNotes}
+                regenTick={regenTick}
+                setRegenTick={setRegenTick}
+                sessionId={sessionId}
+                snapshot={snapshot}
+                setSnapshot={setSnapshot}
+                runApi={runApi}
+                callSubmitPass2={callSubmitPass2}
+                callCommit={callCommit}
+                callReportDisruption={callReportDisruption}
+                callApproveDisruption={callApproveDisruption}
+                callRegenerateNudges={callRegenerateNudges}
+                callAetherChatBackend={callAetherChatBackend}
+                callGetAetherTip={callGetAetherTip}
+              />
+            )}
+            {screen === 12 && (
+              <Screen12
+                username={username}
+                selectedGoals={selectedGoals}
+                goalSliders={goalSliders}
+                tasksPerGoal={tasksPerGoal}
+                totalHoursPerDay={totalHoursPerDay}
+                resilienceScore={resilienceScore}
+                setResilienceScore={setResilienceScore}
+                reservePool={reservePool}
+                setReservePool={setReservePool}
+                planningLag={planningLag}
+                setPlanningLag={setPlanningLag}
+                vaultedTasks={vaultedTasks}
+                setVaultedTasks={setVaultedTasks}
+                onNav={(s: number) => goNext(s)}
+                userProfile={userProfile}
+                aetherInsights={aetherInsights}
+                setAetherInsights={setAetherInsights}
+                sessionId={sessionId}
+                snapshot={snapshot}
+                setSnapshot={setSnapshot}
+                runApi={runApi}
+                callGetChecklist={callGetChecklist}
+                callSubmitDayOutput={callSubmitDayOutput}
+                callLifeHappened={callLifeHappened}
+                callAetherChatBackend={callAetherChatBackend}
+              />
+            )}
+            {screen === 13 && (
+              <Screen13
+                username={username}
+                profession={profession}
+                userProfile={userProfile}
+                setUserProfile={setUserProfile}
+                selectedGoals={selectedGoals}
+                vaultedTasks={vaultedTasks}
+                onNav={(s: number) => goNext(s)}
+              />
+            )}
           </ScreenBoundary>
           {apiLoading && (
             <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 fade-in">
@@ -581,7 +717,9 @@ export default function DoneHoApp() {
           {apiError && (
             <div className="absolute bottom-3 left-3 right-3 z-50 bg-[#b83a3a] text-white text-[11px] rounded-xl px-3 py-2 flex items-center justify-between fade-in">
               <span>{apiError}</span>
-              <button onClick={() => setApiError(null)} className="ml-2 underline">Dismiss</button>
+              <button onClick={() => setApiError(null)} className="ml-2 underline">
+                Dismiss
+              </button>
             </div>
           )}
         </div>
@@ -592,6 +730,7 @@ export default function DoneHoApp() {
 
 // ============ SCREEN 1 SIGNUP ============
 function Screen1({ onJoin, onLogin }: { onJoin: (u: string) => void; onLogin: () => void }) {
+  const posthog = usePostHog();
   const [email, setEmail] = useState("");
   const [pw, setPw] = useState("");
   const [cpw, setCpw] = useState("");
@@ -599,88 +738,156 @@ function Screen1({ onJoin, onLogin }: { onJoin: (u: string) => void; onLogin: ()
   const [showCpw, setShowCpw] = useState(false);
 
   const submit = () => {
-    if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return toast.error("Enter a valid email");
+    if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+      return toast.error("Enter a valid email");
     if (pw.length < 6) return toast.error("Password must be 6+ characters");
     if (pw !== cpw) return toast.error("Passwords don't match");
     const uname = email.split("@")[0].replace(/[^a-z]/gi, "") || "Friend";
-    onJoin(uname.charAt(0).toUpperCase() + uname.slice(1));
+    const username = uname.charAt(0).toUpperCase() + uname.slice(1);
+    posthog.capture("signup_completed");
+    onJoin(username);
   };
 
   return (
     <div className="p-6 flex flex-col items-center min-h-full">
-      <div className="mt-4"><BigGear size={72} spin /></div>
+      <div className="mt-4">
+        <BigGear size={72} spin />
+      </div>
       <Logo size={36} />
       <p className="text-[11px] italic text-[#5a3a20] mt-1">Better Days for the Best</p>
-      <p className="text-[12px] font-semibold text-[#2c1810] mt-2 text-center">Plans that bend so you don't break.</p>
+      <p className="text-[12px] font-semibold text-[#2c1810] mt-2 text-center">
+        Plans that bend so you don't break.
+      </p>
       <p className="text-[10.5px] text-[#5a3a20] mt-3 text-center leading-snug px-2">
-        Life doesn't ask permission before it gets messy. DoneHo catches it quietly and keeps you moving — your week, shaped around real life, not the other way around.
+        Life doesn't ask permission before it gets messy. DoneHo catches it quietly and keeps you
+        moving — your week, shaped around real life, not the other way around.
         <br />
         <span className="italic">No pressure. No restarts. Just forward, at your pace.</span>
       </p>
       <h2 className="font-serif-d text-[20px] font-bold text-[#2c1810] mt-4">Join DoneHo</h2>
 
       <div className="w-full space-y-3 mt-4">
-        <div className="input-pill flex items-center gap-2"><span>✉️</span>
-          <input className="flex-1 bg-transparent outline-none" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
+        <div className="input-pill flex items-center gap-2">
+          <span>✉️</span>
+          <input
+            className="flex-1 bg-transparent outline-none"
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
         </div>
-        <div className="input-pill flex items-center gap-2"><span>🔒</span>
-          <input type={showPw ? "text" : "password"} className="flex-1 bg-transparent outline-none" placeholder="Password" value={pw} onChange={(e) => setPw(e.target.value)} />
-          <button onClick={() => setShowPw(!showPw)} className="text-[#8a5424] text-xs">{showPw ? "🙈" : "👁"}</button>
+        <div className="input-pill flex items-center gap-2">
+          <span>🔒</span>
+          <input
+            type={showPw ? "text" : "password"}
+            className="flex-1 bg-transparent outline-none"
+            placeholder="Password"
+            value={pw}
+            onChange={(e) => setPw(e.target.value)}
+          />
+          <button onClick={() => setShowPw(!showPw)} className="text-[#8a5424] text-xs">
+            {showPw ? "🙈" : "👁"}
+          </button>
         </div>
-        <div className="input-pill flex items-center gap-2"><span>🔒</span>
-          <input type={showCpw ? "text" : "password"} className="flex-1 bg-transparent outline-none" placeholder="Confirm password" value={cpw} onChange={(e) => setCpw(e.target.value)} />
-          <button onClick={() => setShowCpw(!showCpw)} className="text-[#8a5424] text-xs">{showCpw ? "🙈" : "👁"}</button>
+        <div className="input-pill flex items-center gap-2">
+          <span>🔒</span>
+          <input
+            type={showCpw ? "text" : "password"}
+            className="flex-1 bg-transparent outline-none"
+            placeholder="Confirm password"
+            value={cpw}
+            onChange={(e) => setCpw(e.target.value)}
+          />
+          <button onClick={() => setShowCpw(!showCpw)} className="text-[#8a5424] text-xs">
+            {showCpw ? "🙈" : "👁"}
+          </button>
         </div>
       </div>
 
-      <button onClick={submit} className="btn-copper w-full mt-4 py-3 text-sm">Create account</button>
-      <button onClick={onLogin} className="mt-3 text-[12px] text-[#2c1810] underline">Already have an account? Log in</button>
+      <button onClick={submit} className="btn-copper w-full mt-4 py-3 text-sm">
+        Create account
+      </button>
+      <button onClick={onLogin} className="mt-3 text-[12px] text-[#2c1810] underline">
+        Already have an account? Log in
+      </button>
     </div>
   );
 }
 
 // ============ SCREEN 2 LOGIN ============
 function Screen2({ onVerified, onSignup }: { onVerified: () => void; onSignup: () => void }) {
+  const posthog = usePostHog();
   const [email, setEmail] = useState("");
   const [pw, setPw] = useState("");
 
   const submit = () => {
     if (!email.trim()) return toast.error("Enter your email");
     if (pw.length < 4) return toast.error("Enter your password");
+    posthog.capture("login_completed");
     onVerified();
   };
 
   return (
     <div className="p-6 flex flex-col items-center min-h-full">
-      <div className="mt-6"><BigGear size={64} spin rev /></div>
+      <div className="mt-6">
+        <BigGear size={64} spin rev />
+      </div>
       <Logo size={30} />
       <h2 className="font-serif-d text-[22px] font-bold text-[#2c1810] mt-6">Welcome back</h2>
       <div className="w-full space-y-3 mt-4">
-        <div className="input-pill flex items-center gap-2"><span>✉️</span>
-          <input className="flex-1 bg-transparent outline-none" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
+        <div className="input-pill flex items-center gap-2">
+          <span>✉️</span>
+          <input
+            className="flex-1 bg-transparent outline-none"
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
         </div>
-        <div className="input-pill flex items-center gap-2"><span>🔒</span>
-          <input type="password" className="flex-1 bg-transparent outline-none" placeholder="Password" value={pw} onChange={(e) => setPw(e.target.value)} />
+        <div className="input-pill flex items-center gap-2">
+          <span>🔒</span>
+          <input
+            type="password"
+            className="flex-1 bg-transparent outline-none"
+            placeholder="Password"
+            value={pw}
+            onChange={(e) => setPw(e.target.value)}
+          />
         </div>
       </div>
-      <button onClick={submit} className="btn-copper w-full mt-4 py-3 text-sm">Log in</button>
-      <button onClick={onSignup} className="mt-3 text-[12px] text-[#2c1810] underline">New here? Create an account</button>
+      <button onClick={submit} className="btn-copper w-full mt-4 py-3 text-sm">
+        Log in
+      </button>
+      <button onClick={onSignup} className="mt-3 text-[12px] text-[#2c1810] underline">
+        New here? Create an account
+      </button>
     </div>
   );
 }
 
 // ============ SCREEN 3 — CONVERSATIONAL ONBOARDING ============
 // Single chat question: name + profession. Nothing else asked at this stage.
-function Screen3Chat({ seedName, onDone }: { seedName?: string; onDone: (name: string, prof: string) => void }) {
+function Screen3Chat({
+  seedName,
+  onDone,
+}: {
+  seedName?: string;
+  onDone: (name: string, prof: string) => void;
+}) {
+  const posthog = usePostHog();
   const [input, setInput] = useState("");
   const [thinking, setThinking] = useState(false);
   const [showSplash, setShowSplash] = useState(true);
   const inputRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
-    const t = setTimeout(() => { setShowSplash(false); }, 1800);
+    const t = setTimeout(() => {
+      setShowSplash(false);
+    }, 1800);
     return () => clearTimeout(t);
   }, []);
-  useEffect(() => { if (!showSplash) inputRef.current?.focus(); }, [showSplash]);
+  useEffect(() => {
+    if (!showSplash) inputRef.current?.focus();
+  }, [showSplash]);
 
   const submit = () => {
     const raw = input.trim();
@@ -690,7 +897,10 @@ function Screen3Chat({ seedName, onDone }: { seedName?: string; onDone: (name: s
     let name = seedName || "";
     let prof = "";
     if (/,| and | & |\.|—|-/i.test(cleaned)) {
-      const parts = cleaned.split(/,| and | & |\.|—| - /i).map(s => s.trim()).filter(Boolean);
+      const parts = cleaned
+        .split(/,| and | & |\.|—| - /i)
+        .map((s) => s.trim())
+        .filter(Boolean);
       name = parts[0] || name;
       prof = parts.slice(1).join(", ");
     } else {
@@ -701,14 +911,19 @@ function Screen3Chat({ seedName, onDone }: { seedName?: string; onDone: (name: s
     }
     if (!name) name = "Friend";
     if (!prof) prof = "—";
+    const cleanName = name.replace(/[^a-zA-Z\- ]/g, "").trim() || "Friend";
+    const cleanProf = prof.trim();
+    posthog.capture("onboarding_submitted", { profession: cleanProf });
     setThinking(true);
-    setTimeout(() => onDone(name.replace(/[^a-zA-Z\- ]/g, "").trim() || "Friend", prof.trim()), 700);
+    setTimeout(() => onDone(cleanName, cleanProf), 700);
   };
 
   if (showSplash) {
     return (
       <div className="p-6 flex flex-col items-center justify-center min-h-full fade-in">
-        <div className="mb-2"><BigGear size={96} spin /></div>
+        <div className="mb-2">
+          <BigGear size={96} spin />
+        </div>
         <Logo size={44} />
         <p className="text-[13px] italic text-[#5a3a20] mt-3">Better Days for the Best</p>
         <div className="mt-6 text-[10px] text-[#5a3a20]">Warming the gears…</div>
@@ -718,7 +933,6 @@ function Screen3Chat({ seedName, onDone }: { seedName?: string; onDone: (name: s
 
   return (
     <div className="p-5 flex flex-col min-h-full">
-
       <Logo size={30} />
       <div className="mt-6 flex items-start gap-2 fade-in">
         <Aether size={42} />
@@ -729,7 +943,9 @@ function Screen3Chat({ seedName, onDone }: { seedName?: string; onDone: (name: s
         </div>
       </div>
 
-      <div className="mt-4 text-[10px] italic text-[#5a3a20] pl-14">One line is plenty — e.g. "Thasli, product manager"</div>
+      <div className="mt-4 text-[10px] italic text-[#5a3a20] pl-14">
+        One line is plenty — e.g. "Thasli, product manager"
+      </div>
 
       <div className="mt-auto pb-2">
         <div className="input-pill flex items-center gap-2">
@@ -742,33 +958,55 @@ function Screen3Chat({ seedName, onDone }: { seedName?: string; onDone: (name: s
             onKeyDown={(e) => e.key === "Enter" && submit()}
           />
         </div>
-        <button onClick={submit} disabled={thinking}
-          className={`btn-copper w-full mt-3 py-3 text-sm ${thinking ? "opacity-70" : ""}`}>
+        <button
+          onClick={submit}
+          disabled={thinking}
+          className={`btn-copper w-full mt-3 py-3 text-sm ${thinking ? "opacity-70" : ""}`}
+        >
           {thinking ? "Aether is listening…" : "Send →"}
         </button>
-        <div className="mt-3 pt-1"><ProgressBar pct={25} label="Onboarding" /></div>
+        <div className="mt-3 pt-1">
+          <ProgressBar pct={25} label="Onboarding" />
+        </div>
       </div>
     </div>
   );
 }
 
 // ============ SCREEN 4 GOALS ============
-function Screen4({ username, allGoals, setAllGoals, selectedGoals, setSelectedGoals, onGenerate, userProfile, aetherInsights, setAetherInsights }: any) {
+function Screen4({
+  username,
+  allGoals,
+  setAllGoals,
+  selectedGoals,
+  setSelectedGoals,
+  onGenerate,
+  userProfile,
+  aetherInsights,
+  setAetherInsights,
+}: any) {
+  const posthog = usePostHog();
   const [adding, setAdding] = useState(false);
   const [newGoal, setNewGoal] = useState("");
   const [chatOpen, setChatOpen] = useState(false);
 
   const toggle = (g: string) => {
-    setSelectedGoals(selectedGoals.includes(g) ? selectedGoals.filter((x: string) => x !== g) : [...selectedGoals, g]);
+    setSelectedGoals(
+      selectedGoals.includes(g)
+        ? selectedGoals.filter((x: string) => x !== g)
+        : [...selectedGoals, g],
+    );
   };
   const addGoal = () => {
     if (!newGoal.trim()) return;
     setAllGoals([...allGoals, newGoal.trim()]);
     setSelectedGoals([...selectedGoals, newGoal.trim()]);
-    setNewGoal(""); setAdding(false);
+    setNewGoal("");
+    setAdding(false);
   };
   const generate = () => {
     if (selectedGoals.length === 0) return toast.error("Pick at least one goal");
+    posthog.capture("goals_selected", { goal_count: selectedGoals.length, goals: selectedGoals });
     onGenerate();
   };
 
@@ -779,25 +1017,39 @@ function Screen4({ username, allGoals, setAllGoals, selectedGoals, setSelectedGo
         <div className="flex-1 ml-2">
           <AetherProactiveInsight
             screenName="Goal Selection"
-            userData={{ username, selectedGoals, timeOfDay: new Date().getHours(), location: userProfile?.location }}
+            userData={{
+              username,
+              selectedGoals,
+              timeOfDay: new Date().getHours(),
+              location: userProfile?.location,
+            }}
             cache={aetherInsights}
             setCache={setAetherInsights}
           />
         </div>
       </div>
       <h2 className="font-serif-d text-[22px] font-bold text-[#2c1810] mt-2">Welcome {username}</h2>
-      <p className="text-[11px] text-[#5a3a20]">Pick the areas that matter. Aether shapes the rest.</p>
+      <p className="text-[11px] text-[#5a3a20]">
+        Pick the areas that matter. Aether shapes the rest.
+      </p>
 
       <div className="flex items-center gap-2 mt-2">
-        <button onClick={() => setChatOpen(true)} className="btn-olive px-3 py-1 text-[11px]">Ask Aether</button>
+        <button onClick={() => setChatOpen(true)} className="btn-olive px-3 py-1 text-[11px]">
+          Ask Aether
+        </button>
       </div>
 
-      <div className="mt-3 flex-1 overflow-y-auto thin-scroll space-y-2 pr-1" style={{ maxHeight: 380 }}>
+      <div
+        className="mt-3 flex-1 overflow-y-auto thin-scroll space-y-2 pr-1"
+        style={{ maxHeight: 380 }}
+      >
         {allGoals.map((g: string) => {
           const sel = selectedGoals.includes(g);
           return (
             <div key={g} onClick={() => toggle(g)} className="goal-card cursor-pointer">
-              <span>{GOAL_ICONS[g] ?? "✨"} {g}</span>
+              <span>
+                {GOAL_ICONS[g] ?? "✨"} {g}
+              </span>
               <div
                 className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold"
                 style={{
@@ -813,20 +1065,31 @@ function Screen4({ username, allGoals, setAllGoals, selectedGoals, setSelectedGo
         })}
         {adding && (
           <div className="flex gap-2">
-            <input className="input-pill flex-1" placeholder="e.g. Learn French" value={newGoal}
-              onChange={(e) => setNewGoal(e.target.value)} />
-            <button onClick={addGoal} className="btn-copper px-3 text-xs">Add</button>
+            <input
+              className="input-pill flex-1"
+              placeholder="e.g. Learn French"
+              value={newGoal}
+              onChange={(e) => setNewGoal(e.target.value)}
+            />
+            <button onClick={addGoal} className="btn-copper px-3 text-xs">
+              Add
+            </button>
           </div>
         )}
       </div>
 
       <div className="mt-3 space-y-2">
-        <button onClick={generate} className="btn-olive w-full py-2.5 flex items-center justify-center gap-2 text-[13px]">
+        <button
+          onClick={generate}
+          className="btn-olive w-full py-2.5 flex items-center justify-center gap-2 text-[13px]"
+        >
           <span>⚙️</span> Continue
         </button>
         <div className="flex items-center justify-between text-[11px] text-[#2c1810]">
           <span>Don't see your goal?</span>
-          <button onClick={() => setAdding(true)} className="btn-olive px-3 py-1 text-[10px]">+ Add goal</button>
+          <button onClick={() => setAdding(true)} className="btn-olive px-3 py-1 text-[10px]">
+            + Add goal
+          </button>
         </div>
         <ProgressBar pct={45} label="Onboarding" />
       </div>
@@ -837,66 +1100,131 @@ function Screen4({ username, allGoals, setAllGoals, selectedGoals, setSelectedGo
 }
 
 // ============ AETHER CHAT POPUP (used everywhere) ============
-function AetherChat({ username, onClose, sessionId, callAetherChatBackend }: { username: string; onClose: () => void; sessionId?: string | null; callAetherChatBackend?: any }) {
+function AetherChat({
+  username,
+  onClose,
+  sessionId,
+  callAetherChatBackend,
+}: {
+  username: string;
+  onClose: () => void;
+  sessionId?: string | null;
+  callAetherChatBackend?: any;
+}) {
   const [msgs, setMsgs] = useState<{ role: "user" | "assistant"; content: string }[]>([
-    { role: "assistant", content: `Hi ${username || "friend"} — ask me about DoneHo, your plan, or anything unclear. Short answers only ⚙️` }
+    {
+      role: "assistant",
+      content: `Hi ${username || "friend"} — ask me about DoneHo, your plan, or anything unclear. Short answers only ⚙️`,
+    },
   ]);
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const fetchChat = useServerFn(chatWithAether);
-  useEffect(() => { inputRef.current?.focus(); }, []);
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs, typing]);
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [msgs, typing]);
 
   const send = async () => {
     if (!input.trim() || typing) return;
     const userMessage = input.trim();
-    const newHistory: { role: "user" | "assistant"; content: string }[] = [...msgs, { role: "user", content: userMessage }];
+    const newHistory: { role: "user" | "assistant"; content: string }[] = [
+      ...msgs,
+      { role: "user", content: userMessage },
+    ];
     setMsgs(newHistory);
     setInput("");
     setTyping(true);
     try {
       if (sessionId && callAetherChatBackend) {
-        const res = await callAetherChatBackend({ data: { session_id: sessionId, message: userMessage } });
+        const res = await callAetherChatBackend({
+          data: { session_id: sessionId, message: userMessage },
+        });
         setMsgs([...newHistory, { role: "assistant", content: res.reply }]);
       } else {
         const responseText = await fetchChat({ data: { username, messages: newHistory } });
         setMsgs([...newHistory, { role: "assistant", content: responseText }]);
       }
     } catch {
-      setMsgs([...newHistory, { role: "assistant", content: "My signal got disrupted — try again ⚙️" }]);
-    } finally { setTyping(false); }
+      setMsgs([
+        ...newHistory,
+        { role: "assistant", content: "My signal got disrupted — try again ⚙️" },
+      ]);
+    } finally {
+      setTyping(false);
+    }
   };
 
   return (
     <div className="absolute inset-0 bg-black/50 flex items-end z-50 fade-in" onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()}
+      <div
+        onClick={(e) => e.stopPropagation()}
         className="w-full bg-[#c8b89a] rounded-t-3xl border-t-4 border-[#b87333] shadow-2xl flex flex-col"
-        style={{ height: "70%" }}>
+        style={{ height: "70%" }}
+      >
         <div className="flex items-center justify-between p-3 border-b border-[#b87333]/30 rounded-t-3xl">
-          <div className="flex items-center gap-2"><Aether size={32} /><span className="font-bold text-[#2c1810]">Aether</span></div>
-          <button onClick={onClose} className="text-[#2c1810] text-lg font-bold w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#b87333]/20">✕</button>
+          <div className="flex items-center gap-2">
+            <Aether size={32} />
+            <span className="font-bold text-[#2c1810]">Aether</span>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-[#2c1810] text-lg font-bold w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#b87333]/20"
+          >
+            ✕
+          </button>
         </div>
         <div className="flex-1 overflow-y-auto thin-scroll p-3 space-y-2">
           {msgs.map((m, i) => (
-            <div key={i} className={`text-[13px] p-3 rounded-xl max-w-[85%] leading-snug ${m.role === "assistant"
-              ? "bg-[#e8d5a3] text-[#2c1810] mr-auto border border-[#b87333]"
-              : "bg-[#2c1810] text-[#e8d5a3] ml-auto"}`}>{m.content}</div>
+            <div
+              key={i}
+              className={`text-[13px] p-3 rounded-xl max-w-[85%] leading-snug ${
+                m.role === "assistant"
+                  ? "bg-[#e8d5a3] text-[#2c1810] mr-auto border border-[#b87333]"
+                  : "bg-[#2c1810] text-[#e8d5a3] ml-auto"
+              }`}
+            >
+              {m.content}
+            </div>
           ))}
           {typing && (
             <div className="text-[13px] p-3 rounded-xl max-w-[85%] bg-[#e8d5a3] text-[#2c1810] mr-auto border border-[#b87333] flex items-center gap-1">
-              <span className="w-1.5 h-1.5 bg-[#b87333] rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
-              <span className="w-1.5 h-1.5 bg-[#b87333] rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
-              <span className="w-1.5 h-1.5 bg-[#b87333] rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+              <span
+                className="w-1.5 h-1.5 bg-[#b87333] rounded-full animate-bounce"
+                style={{ animationDelay: "0ms" }}
+              ></span>
+              <span
+                className="w-1.5 h-1.5 bg-[#b87333] rounded-full animate-bounce"
+                style={{ animationDelay: "150ms" }}
+              ></span>
+              <span
+                className="w-1.5 h-1.5 bg-[#b87333] rounded-full animate-bounce"
+                style={{ animationDelay: "300ms" }}
+              ></span>
             </div>
           )}
           <div ref={endRef} />
         </div>
         <div className="flex gap-2 p-3 border-t border-[#b87333]/30">
-          <input ref={inputRef} className="input-pill flex-1" placeholder="Ask Aether…" value={input}
-            onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && send()} />
-          <button onClick={send} disabled={typing} className={`btn-copper px-4 text-xs ${typing ? 'opacity-50' : ''}`}>➤</button>
+          <input
+            ref={inputRef}
+            className="input-pill flex-1"
+            placeholder="Ask Aether…"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && send()}
+          />
+          <button
+            onClick={send}
+            disabled={typing}
+            className={`btn-copper px-4 text-xs ${typing ? "opacity-50" : ""}`}
+          >
+            ➤
+          </button>
         </div>
       </div>
     </div>
@@ -904,40 +1232,73 @@ function AetherChat({ username, onClose, sessionId, callAetherChatBackend }: { u
 }
 
 // ============ SCREEN 5 — PRIORITY BLUEPRINT ============
-function Screen5({ username, selectedGoals, goalSliders, setGoalSliders, onActivate, onModify, userProfile, aetherInsights, setAetherInsights }: any) {
+function Screen5({
+  username,
+  selectedGoals,
+  goalSliders,
+  setGoalSliders,
+  onActivate,
+  onModify,
+  userProfile,
+  aetherInsights,
+  setAetherInsights,
+}: any) {
+  const posthog = usePostHog();
   const [chatOpen, setChatOpen] = useState(false);
-  const lifeLoad = useMemo(() => computeLifeLoad(selectedGoals, goalSliders), [selectedGoals, goalSliders]);
+  const lifeLoad = useMemo(
+    () => computeLifeLoad(selectedGoals, goalSliders),
+    [selectedGoals, goalSliders],
+  );
 
   const updateSlider = (g: string, key: keyof GoalSliders, val: number) => {
-    setGoalSliders({ ...goalSliders, [g]: { ...(goalSliders[g] ?? { volatility: 5, traffic: 5 }), [key]: val } });
+    setGoalSliders({
+      ...goalSliders,
+      [g]: { ...(goalSliders[g] ?? { volatility: 5, traffic: 5 }), [key]: val },
+    });
   };
 
   // Commit gating: strictly disabled above 65
   const blocked = lifeLoad > 65;
-  const noLeisure = selectedGoals.length > 0 && !selectedGoals.some((g: string) => LEISURE_GOALS.has(g));
+  const noLeisure =
+    selectedGoals.length > 0 && !selectedGoals.some((g: string) => LEISURE_GOALS.has(g));
 
-  const zoneColor = lifeLoad < 30 ? "#4a7c59" : lifeLoad < 50 ? "#a3c54a" : lifeLoad <= 65 ? "#d4a843" : "#c44b3e";
+  const zoneColor =
+    lifeLoad < 30 ? "#4a7c59" : lifeLoad < 50 ? "#a3c54a" : lifeLoad <= 65 ? "#d4a843" : "#c44b3e";
   const needleAngle = -90 + Math.min(180, (lifeLoad / 100) * 180);
 
   const aetherMsg =
-    lifeLoad < 30 ? "Light week. Room to breathe." :
-    lifeLoad < 50 ? "Nicely balanced." :
-    lifeLoad <= 65 ? "Getting intense. Still safe to commit." :
-    `Too heavy ${username}. Ease one goal down before committing.`;
+    lifeLoad < 30
+      ? "Light week. Room to breathe."
+      : lifeLoad < 50
+        ? "Nicely balanced."
+        : lifeLoad <= 65
+          ? "Getting intense. Still safe to commit."
+          : `Too heavy ${username}. Ease one goal down before committing.`;
 
   return (
     <div className="p-4 flex flex-col min-h-full relative">
       <Logo size={26} />
-      <h2 className="font-serif-d text-[20px] font-bold text-[#2c1810] mt-2">What grounds your week?</h2>
+      <h2 className="font-serif-d text-[20px] font-bold text-[#2c1810] mt-2">
+        What grounds your week?
+      </h2>
 
       <AetherProactiveInsight
         screenName="Priority Blueprint"
-        userData={{ username, selectedGoals, lifeLoadScore: lifeLoad, goalSliders, hasLeisure: !noLeisure, location: userProfile?.location }}
+        userData={{
+          username,
+          selectedGoals,
+          lifeLoadScore: lifeLoad,
+          goalSliders,
+          hasLeisure: !noLeisure,
+          location: userProfile?.location,
+        }}
         cache={aetherInsights}
         setCache={setAetherInsights}
       />
       <div className="flex gap-1 mt-1">
-        <button onClick={() => setChatOpen(true)} className="btn-olive px-2 py-0.5 text-[10px]">Ask Aether</button>
+        <button onClick={() => setChatOpen(true)} className="btn-olive px-2 py-0.5 text-[10px]">
+          Ask Aether
+        </button>
       </div>
 
       <div className="mt-2 flex flex-col items-center">
@@ -949,32 +1310,71 @@ function Screen5({ username, selectedGoals, goalSliders, setGoalSliders, onActiv
               <stop offset="100%" stopColor="#c44b3e" />
             </linearGradient>
           </defs>
-          <path d="M 20 100 A 80 80 0 0 1 180 100" stroke="url(#meterG)" strokeWidth="14" fill="none" strokeLinecap="round" />
-          <line x1="100" y1="100" x2="100" y2="35" stroke="#2c1810" strokeWidth="3" strokeLinecap="round"
-            transform={`rotate(${needleAngle} 100 100)`} style={{ transition: "transform 0.3s" }} />
+          <path
+            d="M 20 100 A 80 80 0 0 1 180 100"
+            stroke="url(#meterG)"
+            strokeWidth="14"
+            fill="none"
+            strokeLinecap="round"
+          />
+          <line
+            x1="100"
+            y1="100"
+            x2="100"
+            y2="35"
+            stroke="#2c1810"
+            strokeWidth="3"
+            strokeLinecap="round"
+            transform={`rotate(${needleAngle} 100 100)`}
+            style={{ transition: "transform 0.3s" }}
+          />
           <circle cx="100" cy="100" r="6" fill={zoneColor} stroke="#6b3f1a" strokeWidth="2" />
         </svg>
-        <div className="text-[12px] font-bold text-[#2c1810] -mt-2">LifeLoad: {lifeLoad.toFixed(1)}</div>
-        <div className="flex justify-between w-[200px] text-[10px] text-[#5a3a20]"><span>Light</span><span>Intense</span></div>
+        <div className="text-[12px] font-bold text-[#2c1810] -mt-2">
+          LifeLoad: {lifeLoad.toFixed(1)}
+        </div>
+        <div className="flex justify-between w-[200px] text-[10px] text-[#5a3a20]">
+          <span>Light</span>
+          <span>Intense</span>
+        </div>
         <div className="text-[10px] italic text-[#2c1810] mt-1 text-center px-2">{aetherMsg}</div>
       </div>
 
       {noLeisure && (
-        <div className="mt-1 text-[10px] text-[#c44b3e]">⚠️ No leisure planned this week — burnout risk.</div>
+        <div className="mt-1 text-[10px] text-[#c44b3e]">
+          ⚠️ No leisure planned this week — burnout risk.
+        </div>
       )}
 
-      <div className="grid grid-cols-2 gap-2 mt-2 overflow-y-auto thin-scroll flex-1 pr-1" style={{ maxHeight: 280 }}>
+      <div
+        className="grid grid-cols-2 gap-2 mt-2 overflow-y-auto thin-scroll flex-1 pr-1"
+        style={{ maxHeight: 280 }}
+      >
         {selectedGoals.map((g: string) => {
           const s = goalSliders[g] ?? { volatility: 5, traffic: 5 };
           return (
             <div key={g} className="dark-card text-[10px] relative">
-              <div className="font-bold text-[11px] mb-1">{GOAL_ICONS[g] ?? "✨"} {g}</div>
+              <div className="font-bold text-[11px] mb-1">
+                {GOAL_ICONS[g] ?? "✨"} {g}
+              </div>
               <div>Volatility: {s.volatility}</div>
-              <input type="range" min={0} max={10} value={s.volatility}
-                onChange={(e) => updateSlider(g, "volatility", Number(e.target.value))} className="steam-slider" />
+              <input
+                type="range"
+                min={0}
+                max={10}
+                value={s.volatility}
+                onChange={(e) => updateSlider(g, "volatility", Number(e.target.value))}
+                className="steam-slider"
+              />
               <div className="mt-1">Traffic: {s.traffic}</div>
-              <input type="range" min={0} max={10} value={s.traffic}
-                onChange={(e) => updateSlider(g, "traffic", Number(e.target.value))} className="steam-slider" />
+              <input
+                type="range"
+                min={0}
+                max={10}
+                value={s.traffic}
+                onChange={(e) => updateSlider(g, "traffic", Number(e.target.value))}
+                className="steam-slider"
+              />
             </div>
           );
         })}
@@ -983,11 +1383,21 @@ function Screen5({ username, selectedGoals, goalSliders, setGoalSliders, onActiv
       <div className="mt-2 space-y-1.5">
         <button
           disabled={blocked}
-          onClick={onActivate}
-          className={`btn-copper w-full py-2.5 text-[13px] ${blocked ? "opacity-50 cursor-not-allowed" : ""}`}>
+          onClick={() => {
+            posthog.capture("priority_blueprint_activated", {
+              life_load: lifeLoad,
+              goal_count: selectedGoals.length,
+            });
+            onActivate();
+          }}
+          className={`btn-copper w-full py-2.5 text-[13px] ${blocked ? "opacity-50 cursor-not-allowed" : ""}`}
+        >
           {blocked ? "Reduce LifeLoad below 65 to commit" : "Activate Priority Blueprint"}
         </button>
-        <button onClick={onModify} className="w-full py-1.5 rounded-full border-2 border-[#b87333] text-[#2c1810] bg-[#e8d5a3] text-xs font-semibold">
+        <button
+          onClick={onModify}
+          className="w-full py-1.5 rounded-full border-2 border-[#b87333] text-[#2c1810] bg-[#e8d5a3] text-xs font-semibold"
+        >
           Modify goals
         </button>
       </div>
@@ -998,8 +1408,19 @@ function Screen5({ username, selectedGoals, goalSliders, setGoalSliders, onActiv
 }
 
 // ============ SCREEN 6 — AETHERIZATION (hours + tasks) ============
-function Screen6({ username, selectedGoals, goalSliders, totalHoursPerDay, setTotalHoursPerDay,
-  tasksPerGoal, setTasksPerGoal, onAetherize, aetherInsights, setAetherInsights }: any) {
+function Screen6({
+  username,
+  selectedGoals,
+  goalSliders,
+  totalHoursPerDay,
+  setTotalHoursPerDay,
+  tasksPerGoal,
+  setTasksPerGoal,
+  onAetherize,
+  aetherInsights,
+  setAetherInsights,
+}: any) {
+  const posthog = usePostHog();
   const [chatOpen, setChatOpen] = useState(false);
   const lifeLoad = computeLifeLoad(selectedGoals, goalSliders);
 
@@ -1031,15 +1452,19 @@ function Screen6({ username, selectedGoals, goalSliders, totalHoursPerDay, setTo
     setTasksPerGoal({ ...tasksPerGoal, [g]: arr });
   };
 
-  const filledCards = orderedGoals.filter((g: string) =>
-    (tasksPerGoal[g] ?? []).filter((t: string) => t.trim()).length >= 1).length;
+  const filledCards = orderedGoals.filter(
+    (g: string) => (tasksPerGoal[g] ?? []).filter((t: string) => t.trim()).length >= 1,
+  ).length;
   const pct = orderedGoals.length === 0 ? 0 : Math.round((filledCards / orderedGoals.length) * 100);
 
   const aetherMsg =
-    pct === 0 ? `Let's start ${username}. Add a task for each goal.` :
-    pct < 50 ? "Nice — every task helps me protect your week." :
-    pct < 100 ? "Almost there. One task per goal is enough." :
-    `Ready ${username}! Tap Aetherize.`;
+    pct === 0
+      ? `Let's start ${username}. Add a task for each goal.`
+      : pct < 50
+        ? "Nice — every task helps me protect your week."
+        : pct < 100
+          ? "Almost there. One task per goal is enough."
+          : `Ready ${username}! Tap Aetherize.`;
 
   const bandPct = ((REC_MAX - REC_MIN) / (REC_MAX - REC_MIN)) * 100;
 
@@ -1047,10 +1472,16 @@ function Screen6({ username, selectedGoals, goalSliders, totalHoursPerDay, setTo
     <div className="p-4 flex flex-col min-h-full relative">
       <div className="flex items-center justify-between">
         <Logo size={26} />
-        <button onClick={() => setChatOpen(true)} className="btn-olive px-2 py-0.5 text-[10px]">Ask Aether</button>
+        <button onClick={() => setChatOpen(true)} className="btn-olive px-2 py-0.5 text-[10px]">
+          Ask Aether
+        </button>
       </div>
-      <h2 className="font-serif-d text-[18px] font-bold text-[#2c1810] mt-2">Your hours this week</h2>
-      <p className="text-[10px] text-[#5a3a20]">Recommended: {REC_MIN}–{REC_MAX} hrs/day. I'll shape the plan around this.</p>
+      <h2 className="font-serif-d text-[18px] font-bold text-[#2c1810] mt-2">
+        Your hours this week
+      </h2>
+      <p className="text-[10px] text-[#5a3a20]">
+        Recommended: {REC_MIN}–{REC_MAX} hrs/day. I'll shape the plan around this.
+      </p>
 
       <div className="mt-2 bg-[#e8d5a3] border border-[#b87333] rounded-xl p-2">
         <div className="flex items-center justify-between text-[10px] text-[#2c1810] font-semibold">
@@ -1058,11 +1489,17 @@ function Screen6({ username, selectedGoals, goalSliders, totalHoursPerDay, setTo
           <span className="text-[12px] text-[#2d4a1e]">{totalHoursPerDay} hrs/day</span>
         </div>
         <div className="relative mt-2 h-3 rounded-full bg-[#b87333]/25 overflow-hidden">
-          <div className="absolute top-0 h-3 bg-[#4a7c59]/50" style={{ left: "0%", width: `${bandPct}%` }} />
-          <div className="absolute top-0 h-3 bg-[#4a7c59]" style={{
-            left: `${((totalHoursPerDay - REC_MIN) / (REC_MAX - REC_MIN)) * 100}%`,
-            width: 4,
-          }} />
+          <div
+            className="absolute top-0 h-3 bg-[#4a7c59]/50"
+            style={{ left: "0%", width: `${bandPct}%` }}
+          />
+          <div
+            className="absolute top-0 h-3 bg-[#4a7c59]"
+            style={{
+              left: `${((totalHoursPerDay - REC_MIN) / (REC_MAX - REC_MIN)) * 100}%`,
+              width: 4,
+            }}
+          />
         </div>
         <input
           type="range"
@@ -1082,32 +1519,55 @@ function Screen6({ username, selectedGoals, goalSliders, totalHoursPerDay, setTo
 
       <AetherProactiveInsight
         screenName="Aetherization"
-        userData={{ username, totalHoursPerDay, lifeLoadScore: lifeLoad, tasksPerGoal, selectedGoals }}
+        userData={{
+          username,
+          totalHoursPerDay,
+          lifeLoadScore: lifeLoad,
+          tasksPerGoal,
+          selectedGoals,
+        }}
         cache={aetherInsights}
         setCache={setAetherInsights}
       />
       <p className="text-[10px] text-[#2d4a1e] mt-1">{aetherMsg}</p>
 
-      <div className="flex-1 overflow-y-auto thin-scroll mt-2 space-y-2 pr-1" style={{ maxHeight: 400 }}>
+      <div
+        className="flex-1 overflow-y-auto thin-scroll mt-2 space-y-2 pr-1"
+        style={{ maxHeight: 400 }}
+      >
         {orderedGoals.map((g: string) => {
           const focus = focusFor(goalSliders[g]);
           const tasks = tasksPerGoal[g] ?? ["", "", "", ""];
           return (
             <div key={g} className="dark-card">
               <div className="flex items-center justify-between">
-                <div className="font-bold text-[12px]">{GOAL_ICONS[g] ?? "✨"} {g}</div>
-                <span className="text-[9px] px-2 py-0.5 rounded-full font-bold" style={{ background: focus.color, color: "#fff" }}>
+                <div className="font-bold text-[12px]">
+                  {GOAL_ICONS[g] ?? "✨"} {g}
+                </div>
+                <span
+                  className="text-[9px] px-2 py-0.5 rounded-full font-bold"
+                  style={{ background: focus.color, color: "#fff" }}
+                >
                   {focus.label}
                 </span>
               </div>
               <div className="space-y-1 mt-2">
                 {tasks.map((t: string, i: number) => (
-                  <input key={i} value={t} onChange={(e) => setTask(g, i, e.target.value)}
+                  <input
+                    key={i}
+                    value={t}
+                    onChange={(e) => setTask(g, i, e.target.value)}
                     placeholder={`Task ${i + 1}`}
-                    className="w-full rounded-full px-3 py-1 text-[11px] bg-[#e8d5a3] text-[#2c1810] border border-[#b87333]" />
+                    className="w-full rounded-full px-3 py-1 text-[11px] bg-[#e8d5a3] text-[#2c1810] border border-[#b87333]"
+                  />
                 ))}
               </div>
-              <button onClick={() => addMore(g)} className="text-[10px] text-[#a3c54a] underline mt-1">+ Add more tasks</button>
+              <button
+                onClick={() => addMore(g)}
+                className="text-[10px] text-[#a3c54a] underline mt-1"
+              >
+                + Add more tasks
+              </button>
             </div>
           );
         })}
@@ -1115,8 +1575,17 @@ function Screen6({ username, selectedGoals, goalSliders, totalHoursPerDay, setTo
 
       <div className="mt-2 flex items-center gap-2">
         <div className="text-[18px] font-bold text-[#2d4a1e]">{pct}%</div>
-        <button disabled={pct < 100} onClick={onAetherize}
-          className={`btn-copper flex-1 py-2 text-[12px] ${pct === 100 ? "glow-pulse" : "opacity-60"}`}>
+        <button
+          disabled={pct < 100}
+          onClick={() => {
+            posthog.capture("week_aetherized", {
+              total_hours_per_day: totalHoursPerDay,
+              goal_count: selectedGoals.length,
+            });
+            onAetherize();
+          }}
+          className={`btn-copper flex-1 py-2 text-[12px] ${pct === 100 ? "glow-pulse" : "opacity-60"}`}
+        >
           Aetherize my week
         </button>
       </div>
@@ -1132,15 +1601,50 @@ function Screen6({ username, selectedGoals, goalSliders, totalHoursPerDay, setTo
 type VagueTask = { goal: string; index: number; text: string; question: string };
 
 const SELF_EVIDENT = new Set([
-  "meditation","meditate","workout","exercise","yoga","stretch","stretching",
-  "cooking","cook","reading","journal","journaling","prayer","walk","walking",
-  "running","cycling","swimming","cleaning","laundry","groceries","sleep",
-  "nap","hydration","breakfast","lunch","dinner",
+  "meditation",
+  "meditate",
+  "workout",
+  "exercise",
+  "yoga",
+  "stretch",
+  "stretching",
+  "cooking",
+  "cook",
+  "reading",
+  "journal",
+  "journaling",
+  "prayer",
+  "walk",
+  "walking",
+  "running",
+  "cycling",
+  "swimming",
+  "cleaning",
+  "laundry",
+  "groceries",
+  "sleep",
+  "nap",
+  "hydration",
+  "breakfast",
+  "lunch",
+  "dinner",
 ]);
 
 const AMBIGUOUS_SINGLES = new Set([
-  "learn","study","improve","practice","work","fitness","health","finance",
-  "money","goals","review","plan","reading","project",
+  "learn",
+  "study",
+  "improve",
+  "practice",
+  "work",
+  "fitness",
+  "health",
+  "finance",
+  "money",
+  "goals",
+  "review",
+  "plan",
+  "reading",
+  "project",
 ]);
 
 function clarifyQuestionFor(raw: string): string | null {
@@ -1169,8 +1673,7 @@ function clarifyQuestionFor(raw: string): string | null {
     return `For "${t}" — saving, budgeting, or investing focus?`;
   if (has("cook", "recipe", "meal") && isShort)
     return `For "${t}" — any cuisine or dietary preference to focus on?`;
-  if (has("practice") && isShort)
-    return `For "${t}" — roughly how many minutes a day feels right?`;
+  if (has("practice") && isShort) return `For "${t}" — roughly how many minutes a day feels right?`;
   if (has("improve", "work on", "get better") && isShort)
     return `For "${t}" — what would "better" look like this week?`;
 
@@ -1181,7 +1684,10 @@ function clarifyQuestionFor(raw: string): string | null {
   return null;
 }
 
-function collectVagueTasks(selectedGoals: string[], tasksPerGoal: Record<string, string[]>): VagueTask[] {
+function collectVagueTasks(
+  selectedGoals: string[],
+  tasksPerGoal: Record<string, string[]>,
+): VagueTask[] {
   const vague: VagueTask[] = [];
   selectedGoals.forEach((g) => {
     (tasksPerGoal[g] ?? []).forEach((t, i) => {
@@ -1194,34 +1700,59 @@ function collectVagueTasks(selectedGoals: string[], tasksPerGoal: Record<string,
   return vague;
 }
 
-function ScreenClarify({ username, selectedGoals, tasksPerGoal, setTasksPerGoal, backendClarifications, onDone }: any) {
+function ScreenClarify({
+  username,
+  selectedGoals,
+  tasksPerGoal,
+  setTasksPerGoal,
+  backendClarifications,
+  onDone,
+}: any) {
+  const posthog = usePostHog();
   void username;
 
-  const backend: { task_id: string; task_title: string; question: string }[] = backendClarifications ?? [];
+  const backend: { task_id: string; task_title: string; question: string }[] =
+    backendClarifications ?? [];
   const useBackend = backend.length > 0;
 
   const localVague = useMemo(
     () => (useBackend ? [] : collectVagueTasks(selectedGoals, tasksPerGoal)),
-    [selectedGoals, tasksPerGoal, useBackend]
+    [selectedGoals, tasksPerGoal, useBackend],
   );
 
   const items = useBackend
-    ? backend.map((b) => ({ id: b.task_id, text: b.task_title, question: b.question, goal: "", index: -1 }))
-    : localVague.map((v) => ({ id: `${v.goal}:${v.index}`, text: v.text, question: v.question, goal: v.goal, index: v.index }));
+    ? backend.map((b) => ({
+        id: b.task_id,
+        text: b.task_title,
+        question: b.question,
+        goal: "",
+        index: -1,
+      }))
+    : localVague.map((v) => ({
+        id: `${v.goal}:${v.index}`,
+        text: v.text,
+        question: v.question,
+        goal: v.goal,
+        index: v.index,
+      }));
 
   const [idx, setIdx] = useState(0);
   const [answer, setAnswer] = useState("");
   const [collected, setCollected] = useState<Record<string, string>>({});
 
-  useEffect(() => { if (items.length === 0) onDone(useBackend ? {} : undefined); }, []); // eslint-disable-line
+  useEffect(() => {
+    if (items.length === 0) onDone(useBackend ? {} : undefined);
+  }, []); // eslint-disable-line
 
   if (items.length === 0) return null;
   const current = items[idx];
 
   const advance = (savedAnswers: Record<string, string>) => {
     setAnswer("");
-    if (idx + 1 >= items.length) onDone(useBackend ? savedAnswers : undefined);
-    else setIdx(idx + 1);
+    if (idx + 1 >= items.length) {
+      posthog.capture("clarifications_submitted", { clarification_count: items.length });
+      onDone(useBackend ? savedAnswers : undefined);
+    } else setIdx(idx + 1);
   };
 
   const submit = () => {
@@ -1244,7 +1775,9 @@ function ScreenClarify({ username, selectedGoals, tasksPerGoal, setTasksPerGoal,
     <div className="p-4 flex flex-col min-h-full">
       <Logo size={26} />
       <h2 className="font-serif-d text-[18px] font-bold text-[#2c1810] mt-3">Quick check-in</h2>
-      <p className="text-[10px] text-[#5a3a20]">Aether wants to sharpen a couple of tasks before blueprinting.</p>
+      <p className="text-[10px] text-[#5a3a20]">
+        Aether wants to sharpen a couple of tasks before blueprinting.
+      </p>
 
       <div className="mt-4 flex items-start gap-2 fade-in" key={idx}>
         <Aether size={38} />
@@ -1265,13 +1798,19 @@ function ScreenClarify({ username, selectedGoals, tasksPerGoal, setTasksPerGoal,
           />
         </div>
         <div className="flex items-center gap-2 mt-3">
-          <button onClick={() => advance(collected)}
-            className="w-1/3 py-2 rounded-full border-2 border-[#b87333] text-[#2c1810] bg-[#e8d5a3] text-xs">
+          <button
+            onClick={() => advance(collected)}
+            className="w-1/3 py-2 rounded-full border-2 border-[#b87333] text-[#2c1810] bg-[#e8d5a3] text-xs"
+          >
             Skip
           </button>
-          <button onClick={submit} className="btn-copper flex-1 py-2 text-sm">Next →</button>
+          <button onClick={submit} className="btn-copper flex-1 py-2 text-sm">
+            Next →
+          </button>
         </div>
-        <div className="text-center text-[9px] text-[#5a3a20] mt-2">Question {idx + 1} of {items.length}</div>
+        <div className="text-center text-[9px] text-[#5a3a20] mt-2">
+          Question {idx + 1} of {items.length}
+        </div>
       </div>
     </div>
   );
@@ -1282,11 +1821,15 @@ function Screen7({ username, onContinue }: { username: string; onContinue: () =>
   const [showBtn, setShowBtn] = useState(false);
   const [typed, setTyped] = useState("");
   const fullText = `Your Blueprint is ready ${username}. I've Aetherized your week around what matters. Let's begin.`;
-  useEffect(() => { const t = setTimeout(() => setShowBtn(true), 1600); return () => clearTimeout(t); }, []);
+  useEffect(() => {
+    const t = setTimeout(() => setShowBtn(true), 1600);
+    return () => clearTimeout(t);
+  }, []);
   useEffect(() => {
     let i = 0;
     const id = setInterval(() => {
-      i++; setTyped(fullText.slice(0, i));
+      i++;
+      setTyped(fullText.slice(0, i));
       if (i >= fullText.length) clearInterval(id);
     }, 24);
     return () => clearInterval(id);
@@ -1295,14 +1838,30 @@ function Screen7({ username, onContinue }: { username: string; onContinue: () =>
   return (
     <div className="p-5 flex flex-col items-center min-h-full">
       <Logo size={30} />
-      <h2 className="font-serif-d text-[24px] font-bold text-[#2c1810] mt-3 text-center">Aetherization complete</h2>
-      <div className="mt-4 w-full rounded-3xl p-5 relative overflow-hidden"
-        style={{ background: "linear-gradient(180deg, #3a5e26, #2d4a1e)", border: "3px solid #b87333" }}>
+      <h2 className="font-serif-d text-[24px] font-bold text-[#2c1810] mt-3 text-center">
+        Aetherization complete
+      </h2>
+      <div
+        className="mt-4 w-full rounded-3xl p-5 relative overflow-hidden"
+        style={{
+          background: "linear-gradient(180deg, #3a5e26, #2d4a1e)",
+          border: "3px solid #b87333",
+        }}
+      >
         {[...Array(8)].map((_, i) => (
-          <div key={i} className="absolute sparkle" style={{
-            top: `${10 + (i * 11) % 80}%`, left: `${5 + (i * 17) % 90}%`,
-            animationDelay: `${i * 0.3}s`, color: "#d4a843", fontSize: 10,
-          }}>✦</div>
+          <div
+            key={i}
+            className="absolute sparkle"
+            style={{
+              top: `${10 + ((i * 11) % 80)}%`,
+              left: `${5 + ((i * 17) % 90)}%`,
+              animationDelay: `${i * 0.3}s`,
+              color: "#d4a843",
+              fontSize: 10,
+            }}
+          >
+            ✦
+          </div>
         ))}
         <div className="flex items-center justify-center gap-2 mt-6">
           <BigGear size={48} spin rev />
@@ -1311,7 +1870,9 @@ function Screen7({ username, onContinue }: { username: string; onContinue: () =>
         </div>
         <div className="h-1 bg-[#b87333] w-1/2 mx-auto mt-3 rounded-full" />
       </div>
-      <div className="w-full mt-4"><ProgressBar pct={100} /></div>
+      <div className="w-full mt-4">
+        <ProgressBar pct={100} />
+      </div>
 
       <div className="mt-3 flex items-start gap-2">
         <Aether size={40} />
@@ -1321,7 +1882,10 @@ function Screen7({ username, onContinue }: { username: string; onContinue: () =>
       </div>
 
       {showBtn && (
-        <button onClick={onContinue} className="btn-copper px-5 py-2 text-xs mt-auto self-end fade-in">
+        <button
+          onClick={onContinue}
+          className="btn-copper px-5 py-2 text-xs mt-auto self-end fade-in"
+        >
           Open Blueprint →
         </button>
       )}
@@ -1333,8 +1897,10 @@ function Screen7({ username, onContinue }: { username: string; onContinue: () =>
 function getWeekRange(): string {
   const now = new Date();
   const day = now.getDay();
-  const monday = new Date(now); monday.setDate(now.getDate() - ((day + 6) % 7));
-  const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6);
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - ((day + 6) % 7));
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
   const fmt = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   return `${fmt(monday)} - ${fmt(sunday)}`;
 }
@@ -1351,19 +1917,31 @@ function computeDistribution(
   let sum = 0;
   selected.forEach((g) => {
     const s = sliders[g] ?? { volatility: 5, traffic: 5 };
-    const w = Math.max(0.5, (s.traffic + s.volatility));
+    const w = Math.max(0.5, s.traffic + s.volatility);
     weighted[g] = w;
     sum += w;
   });
-  const result: { goal: string; hours: number; weighted: number; tasks: { name: string; minutes: number; milestones: MilestoneItem[] }[] }[] = [];
+  const result: {
+    goal: string;
+    hours: number;
+    weighted: number;
+    tasks: { name: string; minutes: number; milestones: MilestoneItem[] }[];
+  }[] = [];
   selected.forEach((g) => {
     let hours = sum > 0 ? (weighted[g] / sum) * available : 0;
     hours = Math.max(0.5, Math.round(hours * 2) / 2);
     const taskList = (tasks[g] ?? []).filter((t) => t.trim());
-    const perTask = taskList.length > 0 ? Math.max(10, Math.round((hours * 60) / taskList.length / 5) * 5) : 0;
+    const perTask =
+      taskList.length > 0 ? Math.max(10, Math.round((hours * 60) / taskList.length / 5) * 5) : 0;
     result.push({
-      goal: g, hours, weighted: weighted[g],
-      tasks: taskList.map((t) => ({ name: t, minutes: perTask, milestones: milestonesForTask(blueprint, g, t) })),
+      goal: g,
+      hours,
+      weighted: weighted[g],
+      tasks: taskList.map((t) => ({
+        name: t,
+        minutes: perTask,
+        milestones: milestonesForTask(blueprint, g, t),
+      })),
     });
   });
   result.sort((a, b) => b.weighted - a.weighted);
@@ -1372,23 +1950,60 @@ function computeDistribution(
 
 function Screen8(props: any) {
   const {
-    username, selectedGoals, goalSliders, tasksPerGoal, setTasksPerGoal, setSelectedGoals, setGoalSliders,
-    totalHoursPerDay, vaultedTasks, onNav, userProfile, aetherInsights, setAetherInsights,
-    panelCache, setPanelCache, refinementSeen, setRefinementSeen, refinementNotes, setRefinementNotes,
-    regenTick, setRegenTick,
-    sessionId, snapshot, setSnapshot, runApi, callSubmitPass2, callCommit,
-    callReportDisruption, callApproveDisruption, callRegenerateNudges, callAetherChatBackend, callGetAetherTip,
+    username,
+    selectedGoals,
+    goalSliders,
+    tasksPerGoal,
+    setTasksPerGoal,
+    setSelectedGoals,
+    setGoalSliders,
+    totalHoursPerDay,
+    vaultedTasks,
+    onNav,
+    userProfile,
+    aetherInsights,
+    setAetherInsights,
+    panelCache,
+    setPanelCache,
+    refinementSeen,
+    setRefinementSeen,
+    refinementNotes,
+    setRefinementNotes,
+    regenTick,
+    setRegenTick,
+    sessionId,
+    snapshot,
+    setSnapshot,
+    runApi,
+    callSubmitPass2,
+    callCommit,
+    callReportDisruption,
+    callApproveDisruption,
+    callRegenerateNudges,
+    callAetherChatBackend,
+    callGetAetherTip,
   } = props;
 
   const dist = useMemo(
-    () => computeDistribution(selectedGoals, goalSliders, totalHoursPerDay || 5, tasksPerGoal, snapshot?.blueprint),
-    [selectedGoals, goalSliders, totalHoursPerDay, tasksPerGoal, regenTick, snapshot]
+    () =>
+      computeDistribution(
+        selectedGoals,
+        goalSliders,
+        totalHoursPerDay || 5,
+        tasksPerGoal,
+        snapshot?.blueprint,
+      ),
+    [selectedGoals, goalSliders, totalHoursPerDay, tasksPerGoal, regenTick, snapshot],
   );
   const lifeLoad = useMemo(
-    () => (typeof snapshot?.lifeload === "number" ? snapshot.lifeload : computeLifeLoad(selectedGoals, goalSliders)),
-    [snapshot, selectedGoals, goalSliders]
+    () =>
+      typeof snapshot?.lifeload === "number"
+        ? snapshot.lifeload
+        : computeLifeLoad(selectedGoals, goalSliders),
+    [snapshot, selectedGoals, goalSliders],
   );
 
+  const posthog = usePostHog();
   const [panel, setPanel] = useState<string | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
   const [showRefinement, setShowRefinement] = useState(!refinementSeen);
@@ -1409,10 +2024,15 @@ function Screen8(props: any) {
     setRefreshing(true);
     setPendingApproval(false);
     const result: any = await runApi(() =>
-      callReportDisruption({ data: { session_id: sessionId, description: disruption.trim(), direction: "loss" } })
+      callReportDisruption({
+        data: { session_id: sessionId, description: disruption.trim(), direction: "loss" },
+      }),
     );
     setRefreshing(false);
     if (!result) return;
+    posthog.capture("disruption_reported", {
+      requires_approval: !!result.pending_recalibration?.requires_approval,
+    });
     setSnapshot(result);
     setPanelCache({});
     setRegenTick((t: number) => t + 1);
@@ -1427,9 +2047,12 @@ function Screen8(props: any) {
   const approveDisruptionNow = async () => {
     if (!sessionId || !runApi) return;
     setRefreshing(true);
-    const result: any = await runApi(() => callApproveDisruption({ data: { session_id: sessionId } }));
+    const result: any = await runApi(() =>
+      callApproveDisruption({ data: { session_id: sessionId } }),
+    );
     setRefreshing(false);
     if (!result) return;
+    posthog.capture("disruption_approved");
     setSnapshot(result);
     setPendingApproval(false);
     setDisruptionMsg(result.pending_recalibration?.message ?? "Updated.");
@@ -1448,7 +2071,14 @@ function Screen8(props: any) {
         <div className="flex-1">
           <AetherProactiveInsight
             screenName="Blueprint Dashboard"
-            userData={{ username, lifeLoadScore: lifeLoad, selectedGoals, timeOfDay: new Date().getHours(), location: userProfile?.location, totalHoursPerDay }}
+            userData={{
+              username,
+              lifeLoadScore: lifeLoad,
+              selectedGoals,
+              timeOfDay: new Date().getHours(),
+              location: userProfile?.location,
+              totalHoursPerDay,
+            }}
             cache={aetherInsights}
             setCache={setAetherInsights}
           />
@@ -1457,15 +2087,22 @@ function Screen8(props: any) {
       </div>
 
       <div className="px-3 flex items-center gap-2">
-        <button onClick={() => setChatOpen(true)} className="btn-olive px-2 py-0.5 text-[10px]">Ask Aether</button>
-        <button onClick={() => setModifyOpen(true)} className="btn-copper px-2 py-0.5 text-[10px]">✎ Modify goals/tasks</button>
+        <button onClick={() => setChatOpen(true)} className="btn-olive px-2 py-0.5 text-[10px]">
+          Ask Aether
+        </button>
+        <button onClick={() => setModifyOpen(true)} className="btn-copper px-2 py-0.5 text-[10px]">
+          ✎ Modify goals/tasks
+        </button>
       </div>
 
       <div className="px-3 mt-2 flex items-center gap-2">
         <div className="flex items-center gap-1 bg-[#2d4a1e] rounded-full px-2 py-0.5 text-[10px] text-[#e8d5b0]">
-          <span>🔒</span><span>{totalHoursPerDay} hrs/day planned</span>
+          <span>🔒</span>
+          <span>{totalHoursPerDay} hrs/day planned</span>
         </div>
-        <div className="flex-1 text-right text-[10px] bg-[#b87333] text-white rounded-full px-2 py-0.5">{getWeekRange()}</div>
+        <div className="flex-1 text-right text-[10px] bg-[#b87333] text-white rounded-full px-2 py-0.5">
+          {getWeekRange()}
+        </div>
       </div>
 
       <div className="px-3 mt-2">
@@ -1478,13 +2115,23 @@ function Screen8(props: any) {
             placeholder="Something changed today — good or bad? Tell Aether."
             className="flex-1 bg-[#e8d5a3] text-[#2c1810] rounded-full px-3 py-1 text-[11px] outline-none border border-[#b87333]"
           />
-          <button onClick={submitDisruption} className="btn-copper px-3 py-1 text-[10px]" disabled={refreshing}>
+          <button
+            onClick={submitDisruption}
+            className="btn-copper px-3 py-1 text-[10px]"
+            disabled={refreshing}
+          >
             {refreshing ? "…" : "Send"}
           </button>
         </div>
-        {disruptionMsg && <div className="text-[10px] italic text-[#2d4a1e] mt-1 fade-in">{disruptionMsg}</div>}
+        {disruptionMsg && (
+          <div className="text-[10px] italic text-[#2d4a1e] mt-1 fade-in">{disruptionMsg}</div>
+        )}
         {pendingApproval && (
-          <button onClick={approveDisruptionNow} className="btn-olive w-full mt-1.5 py-1.5 text-[10px]" disabled={refreshing}>
+          <button
+            onClick={approveDisruptionNow}
+            className="btn-olive w-full mt-1.5 py-1.5 text-[10px]"
+            disabled={refreshing}
+          >
             Confirm this adjustment
           </button>
         )}
@@ -1492,41 +2139,72 @@ function Screen8(props: any) {
 
       <div className="px-3 mt-2 grid grid-cols-3 gap-2">
         <PlaceholderCard title="Life Load Trend" body={<MiniTrend />} tag="mock" />
-        <PlaceholderCard title="Current Focus" body={
-          <div className="text-[10px] text-[#e8d5b0] font-semibold truncate">{dist[0]?.goal ?? "—"}</div>
-        } tag="mock" />
+        <PlaceholderCard
+          title="Current Focus"
+          body={
+            <div className="text-[10px] text-[#e8d5b0] font-semibold truncate">
+              {dist[0]?.goal ?? "—"}
+            </div>
+          }
+          tag="mock"
+        />
         <PlaceholderCard title="Weekly Snapshot" body={<MiniSnapshot />} tag="mock" />
       </div>
 
       <div className="px-3 mt-2">
         <div className="dark-card">
-          <div className="text-[10px] font-bold text-[#e8d5b0]">Upcoming High-Impact Tasks <span className="text-[8px] text-[#d4a843] italic">(placeholder)</span></div>
+          <div className="text-[10px] font-bold text-[#e8d5b0]">
+            Upcoming High-Impact Tasks{" "}
+            <span className="text-[8px] text-[#d4a843] italic">(placeholder)</span>
+          </div>
           <ul className="text-[10px] text-[#e8d5b0]/80 mt-1 space-y-0.5">
-            {dist.slice(0, 3).flatMap((d) => d.tasks.slice(0, 1).map((t, i) => (
-              <li key={d.goal + i}>• {t.name} <span className="text-[#a3c54a]">({d.goal})</span></li>
-            )))}
+            {dist.slice(0, 3).flatMap((d) =>
+              d.tasks.slice(0, 1).map((t, i) => (
+                <li key={d.goal + i}>
+                  • {t.name} <span className="text-[#a3c54a]">({d.goal})</span>
+                </li>
+              )),
+            )}
           </ul>
         </div>
       </div>
 
-      <h3 className="text-center font-serif-d font-bold text-[14px] text-[#2c1810] mt-2">{username}'s Blueprint</h3>
-      <div className="text-center text-[9px] text-[#5a3a20] italic">Grouped by goal → task → milestones</div>
+      <h3 className="text-center font-serif-d font-bold text-[14px] text-[#2c1810] mt-2">
+        {username}'s Blueprint
+      </h3>
+      <div className="text-center text-[9px] text-[#5a3a20] italic">
+        Grouped by goal → task → milestones
+      </div>
 
       <div className="flex-1 flex gap-2 px-2 mt-1 overflow-hidden">
-        <div key={regenTick} className={`flex-1 overflow-y-auto thin-scroll space-y-2 pr-1 ${refreshing ? "opacity-60" : ""} fade-in`}>
+        <div
+          key={regenTick}
+          className={`flex-1 overflow-y-auto thin-scroll space-y-2 pr-1 ${refreshing ? "opacity-60" : ""} fade-in`}
+        >
           {dist.map((d) => {
             const focus = focusFor(goalSliders[d.goal]);
             return (
               <div key={d.goal} className="dark-card text-[10px]">
                 <div className="flex items-center justify-between">
-                  <span className="font-bold">{GOAL_ICONS[d.goal] ?? "✨"} {d.goal}</span>
+                  <span className="font-bold">
+                    {GOAL_ICONS[d.goal] ?? "✨"} {d.goal}
+                  </span>
                   <span className="text-[#a3c54a] font-bold">{d.hours} hr/day</span>
                 </div>
                 <div className="flex gap-1 mt-1">
-                  <span className="text-[8px] px-1.5 py-0.5 rounded-full" style={{ background: focus.color, color: "#fff" }}>{focus.label}</span>
+                  <span
+                    className="text-[8px] px-1.5 py-0.5 rounded-full"
+                    style={{ background: focus.color, color: "#fff" }}
+                  >
+                    {focus.label}
+                  </span>
                 </div>
                 <div className="mt-2 space-y-1.5">
-                  {d.tasks.length === 0 && <div className="text-[9px] italic text-[#e8d5b0]/70">No tasks yet — add some via Modify.</div>}
+                  {d.tasks.length === 0 && (
+                    <div className="text-[9px] italic text-[#e8d5b0]/70">
+                      No tasks yet — add some via Modify.
+                    </div>
+                  )}
                   {d.tasks.map((t, i) => {
                     const key = `${d.goal}::${t.name}`;
                     const open = !!expandedTasks[key];
@@ -1542,7 +2220,9 @@ function Screen8(props: any) {
                             <span
                               className="inline-block transition-transform"
                               style={{ transform: open ? "rotate(90deg)" : "rotate(0deg)" }}
-                            >▸</span>
+                            >
+                              ▸
+                            </span>
                             {t.name}
                           </span>
                           <span className="text-[#4a7c59]">{t.minutes} min/day</span>
@@ -1550,15 +2230,21 @@ function Screen8(props: any) {
                         {open && (
                           <ul className="mt-1 space-y-0.5 pl-4">
                             {t.milestones.length === 0 && (
-                              <li className="text-[9px] italic text-[#5a3a20]/70">No milestones yet.</li>
+                              <li className="text-[9px] italic text-[#5a3a20]/70">
+                                No milestones yet.
+                              </li>
                             )}
                             {t.milestones.map((m, k) => (
                               <li
                                 key={k}
                                 className={`text-[9px] flex justify-between gap-2 ${m.completed ? "text-[#5a3a20]/60 line-through" : "text-[#5a3a20]"}`}
                               >
-                                <span>{m.completed ? "✓" : "•"} {m.title}</span>
-                                {m.hours > 0 && <span className="text-[#4a7c59] shrink-0">{m.hours}h</span>}
+                                <span>
+                                  {m.completed ? "✓" : "•"} {m.title}
+                                </span>
+                                {m.hours > 0 && (
+                                  <span className="text-[#4a7c59] shrink-0">{m.hours}h</span>
+                                )}
                               </li>
                             ))}
                           </ul>
@@ -1566,12 +2252,16 @@ function Screen8(props: any) {
                       </div>
                     );
                   })}
-
                 </div>
               </div>
             );
           })}
-          <button onClick={regenerateBlueprint} className="btn-olive w-full py-1.5 text-[11px] mt-1">↻ Regenerate Blueprint</button>
+          <button
+            onClick={regenerateBlueprint}
+            className="btn-olive w-full py-1.5 text-[11px] mt-1"
+          >
+            ↻ Regenerate Blueprint
+          </button>
         </div>
 
         <div className="flex flex-col gap-1.5 py-1">
@@ -1581,9 +2271,16 @@ function Screen8(props: any) {
             { id: "spend", icon: "💰" },
             { id: "day", icon: "📅" },
           ].map((b) => (
-            <button key={b.id} onClick={() => setPanel(b.id)}
+            <button
+              key={b.id}
+              onClick={() => setPanel(b.id)}
               className="w-9 h-9 rounded-full flex items-center justify-center text-base"
-              style={{ background: "radial-gradient(circle, #d4a843, #b87333 60%, #6b3f1a)", border: "2px solid #6b3f1a", color: "#fff" }}>
+              style={{
+                background: "radial-gradient(circle, #d4a843, #b87333 60%, #6b3f1a)",
+                border: "2px solid #6b3f1a",
+                color: "#fff",
+              }}
+            >
               {b.icon}
             </button>
           ))}
@@ -1592,26 +2289,54 @@ function Screen8(props: any) {
 
       <BottomNav onNav={onNav} active={8} />
 
-      {panel && <SidePanel panelId={panel} dist={dist} onClose={() => setPanel(null)} onNav={onNav}
-        userData={{ username, selectedGoals, tasksPerGoal, lifeLoadScore: lifeLoad, timeOfDay: new Date().getHours(), totalHoursPerDay, goalSliders, location: userProfile?.location }}
-        panelCache={panelCache} setPanelCache={setPanelCache}
-        sessionId={sessionId} snapshot={snapshot} runApi={runApi} callRegenerateNudges={callRegenerateNudges} />}
-      {chatOpen && <AetherChat username={username} onClose={() => setChatOpen(false)} sessionId={sessionId} callAetherChatBackend={callAetherChatBackend} />}
+      {panel && (
+        <SidePanel
+          panelId={panel}
+          dist={dist}
+          onClose={() => setPanel(null)}
+          onNav={onNav}
+          userData={{
+            username,
+            selectedGoals,
+            tasksPerGoal,
+            lifeLoadScore: lifeLoad,
+            timeOfDay: new Date().getHours(),
+            totalHoursPerDay,
+            goalSliders,
+            location: userProfile?.location,
+          }}
+          panelCache={panelCache}
+          setPanelCache={setPanelCache}
+          sessionId={sessionId}
+          snapshot={snapshot}
+          runApi={runApi}
+          callRegenerateNudges={callRegenerateNudges}
+        />
+      )}
+      {chatOpen && (
+        <AetherChat
+          username={username}
+          onClose={() => setChatOpen(false)}
+          sessionId={sessionId}
+          callAetherChatBackend={callAetherChatBackend}
+        />
+      )}
 
       {showRefinement && (
         <Pass2RefinementModal
-          onClose={() => { setShowRefinement(false); setRefinementSeen(true); }}
+          onClose={() => {
+            setShowRefinement(false);
+            setRefinementSeen(true);
+          }}
           notes={refinementNotes}
           setNotes={setRefinementNotes}
           onSaved={async (payload: any) => {
             if (!sessionId || !runApi) return;
             const pass2 = await runApi(() =>
-              callSubmitPass2({ data: { session_id: sessionId, ...payload } })
+              callSubmitPass2({ data: { session_id: sessionId, ...payload } }),
             );
             if (pass2) setSnapshot(pass2);
-            const committed = await runApi(() =>
-              callCommit({ data: { session_id: sessionId } })
-            );
+            const committed = await runApi(() => callCommit({ data: { session_id: sessionId } }));
             if (committed) setSnapshot(committed);
           }}
         />
@@ -1646,10 +2371,20 @@ function Screen8(props: any) {
 }
 
 // ============ MINI PLACEHOLDER WIDGETS ============
-function PlaceholderCard({ title, body, tag }: { title: string; body: React.ReactNode; tag?: string }) {
+function PlaceholderCard({
+  title,
+  body,
+  tag,
+}: {
+  title: string;
+  body: React.ReactNode;
+  tag?: string;
+}) {
   return (
     <div className="dark-card !p-2 relative">
-      {tag && <span className="absolute top-1 right-1 text-[7px] uppercase text-[#d4a843]/80">{tag}</span>}
+      {tag && (
+        <span className="absolute top-1 right-1 text-[7px] uppercase text-[#d4a843]/80">{tag}</span>
+      )}
       <div className="text-[9px] font-bold text-[#e8d5b0]">{title}</div>
       <div className="mt-1">{body}</div>
     </div>
@@ -1661,7 +2396,9 @@ function MiniTrend() {
   return (
     <svg viewBox="0 0 70 22" className="w-full h-6">
       <polyline
-        fill="none" stroke="#a3c54a" strokeWidth="1.5"
+        fill="none"
+        stroke="#a3c54a"
+        strokeWidth="1.5"
         points={points.map((p, i) => `${i * 11 + 2},${22 - (p / max) * 18}`).join(" ")}
       />
     </svg>
@@ -1674,7 +2411,10 @@ function MiniSnapshot() {
     <div className="flex items-end gap-0.5 h-6">
       {days.map((d, i) => (
         <div key={i} className="flex flex-col items-center flex-1">
-          <div className="w-full rounded-t" style={{ height: `${filled[i] * 4}px`, background: "#4a7c59" }} />
+          <div
+            className="w-full rounded-t"
+            style={{ height: `${filled[i] * 4}px`, background: "#4a7c59" }}
+          />
           <span className="text-[7px] text-[#e8d5b0]/70">{d}</span>
         </div>
       ))}
@@ -1692,10 +2432,12 @@ const REFINE_OPTIONS = [
 ];
 
 function Pass2RefinementModal({ onClose, notes, setNotes, onSaved }: any) {
+  const posthog = usePostHog();
   const [ticked, setTicked] = useState<string[]>(notes || []);
   const [followUp, setFollowUp] = useState("");
   const [phase, setPhase] = useState<"tick" | "chat">("tick");
-  const toggle = (o: string) => setTicked(ticked.includes(o) ? ticked.filter(x => x !== o) : [...ticked, o]);
+  const toggle = (o: string) =>
+    setTicked(ticked.includes(o) ? ticked.filter((x) => x !== o) : [...ticked, o]);
 
   const derivePayload = (ticks: string[], text: string) => {
     const m = text.match(/(\d+(?:\.\d+)?)/);
@@ -1711,7 +2453,13 @@ function Pass2RefinementModal({ onClose, notes, setNotes, onSaved }: any) {
 
   const advance = async () => {
     if (ticked.length === 0) {
-      if (onSaved) await onSaved({ caregiving_hours: 0, planned_event_hours: 0, other_time_constraint_hours: 0 });
+      if (onSaved)
+        await onSaved({
+          caregiving_hours: 0,
+          planned_event_hours: 0,
+          other_time_constraint_hours: 0,
+        });
+      posthog.capture("blueprint_committed", { refinement_items: 0 });
       onClose();
       return;
     }
@@ -1720,23 +2468,34 @@ function Pass2RefinementModal({ onClose, notes, setNotes, onSaved }: any) {
   const submitFollowUp = async () => {
     setNotes([...(notes || []), ...ticked, followUp.trim()].filter(Boolean));
     if (onSaved) await onSaved(derivePayload(ticked, followUp));
+    posthog.capture("blueprint_committed", { refinement_items: ticked.length });
     onClose();
   };
 
   return (
     <div className="absolute inset-0 bg-black/50 z-50 flex items-end fade-in" onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()}
-        className="w-full bg-[#c8b89a] rounded-t-3xl p-4 border-t-4 border-[#b87333]" style={{ maxHeight: "80%" }}>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full bg-[#c8b89a] rounded-t-3xl p-4 border-t-4 border-[#b87333]"
+        style={{ maxHeight: "80%" }}
+      >
         <div className="flex items-center justify-between mb-2">
           <h3 className="font-serif-d text-[16px] font-bold text-[#2c1810]">One more thing</h3>
-          <button onClick={onClose} className="text-xl">✕</button>
+          <button onClick={onClose} className="text-xl">
+            ✕
+          </button>
         </div>
         {phase === "tick" ? (
           <>
-            <p className="text-[11px] text-[#2c1810]">To make your Blueprint fit your real life — anything below apply to your week?</p>
+            <p className="text-[11px] text-[#2c1810]">
+              To make your Blueprint fit your real life — anything below apply to your week?
+            </p>
             <div className="mt-2 space-y-1.5">
-              {REFINE_OPTIONS.map(o => (
-                <label key={o} className="flex items-center gap-2 bg-[#e8d5a3] border border-[#b87333] rounded-lg p-2 text-[11px] text-[#2c1810]">
+              {REFINE_OPTIONS.map((o) => (
+                <label
+                  key={o}
+                  className="flex items-center gap-2 bg-[#e8d5a3] border border-[#b87333] rounded-lg p-2 text-[11px] text-[#2c1810]"
+                >
                   <input type="checkbox" checked={ticked.includes(o)} onChange={() => toggle(o)} />
                   {o}
                 </label>
@@ -1752,13 +2511,19 @@ function Pass2RefinementModal({ onClose, notes, setNotes, onSaved }: any) {
               <Aether size={34} />
               <div className="bg-[#e8d5a3] border-2 border-[#b87333] rounded-2xl rounded-tl-sm p-3 text-[11px] text-[#2c1810]">
                 Roughly how many hours/week for {ticked.join(", ").toLowerCase()}?
-                {ticked.some(t => t.includes("event")) && " And what's the event, and how many hours will it take?"}
+                {ticked.some((t) => t.includes("event")) &&
+                  " And what's the event, and how many hours will it take?"}
               </div>
             </div>
-            <textarea value={followUp} onChange={(e) => setFollowUp(e.target.value)}
+            <textarea
+              value={followUp}
+              onChange={(e) => setFollowUp(e.target.value)}
               className="w-full mt-3 rounded-xl border border-[#b87333] bg-[#e8d5a3] p-2 text-[12px] text-[#2c1810] h-20 outline-none"
-              placeholder="Short answer — Aether will fold it in." />
-            <button onClick={submitFollowUp} className="btn-copper w-full py-2 text-sm mt-2">Save & continue →</button>
+              placeholder="Short answer — Aether will fold it in."
+            />
+            <button onClick={submitFollowUp} className="btn-copper w-full py-2 text-sm mt-2">
+              Save & continue →
+            </button>
           </>
         )}
       </div>
@@ -1767,7 +2532,15 @@ function Pass2RefinementModal({ onClose, notes, setNotes, onSaved }: any) {
 }
 
 // ============ MODIFY MODAL ============
-function ModifyModal({ allGoals, selectedGoals, goalSliders, tasksPerGoal, onClose, onTasksChanged, onGoalsChanged }: any) {
+function ModifyModal({
+  allGoals,
+  selectedGoals,
+  goalSliders,
+  tasksPerGoal,
+  onClose,
+  onTasksChanged,
+  onGoalsChanged,
+}: any) {
   const [tab, setTab] = useState<"tasks" | "goals">("tasks");
   const [localTasks, setLocalTasks] = useState<Record<string, string[]>>({ ...tasksPerGoal });
   const [localGoals, setLocalGoals] = useState<string[]>([...selectedGoals]);
@@ -1787,31 +2560,53 @@ function ModifyModal({ allGoals, selectedGoals, goalSliders, tasksPerGoal, onClo
     setLocalTasks({ ...localTasks, [g]: arr });
   };
   const toggleGoal = (g: string) => {
-    setLocalGoals(localGoals.includes(g) ? localGoals.filter(x => x !== g) : [...localGoals, g]);
+    setLocalGoals(localGoals.includes(g) ? localGoals.filter((x) => x !== g) : [...localGoals, g]);
   };
 
-  const saveTasks = () => { onTasksChanged(localTasks); onClose(); };
+  const saveTasks = () => {
+    onTasksChanged(localTasks);
+    onClose();
+  };
   const saveGoals = () => {
     const sliders = { ...goalSliders };
-    localGoals.forEach(g => { if (!sliders[g]) sliders[g] = GOAL_DEFAULTS[g] ?? { volatility: 5, traffic: 5 }; });
+    localGoals.forEach((g) => {
+      if (!sliders[g]) sliders[g] = GOAL_DEFAULTS[g] ?? { volatility: 5, traffic: 5 };
+    });
     onGoalsChanged(localGoals, sliders);
     onClose();
   };
 
   return (
     <div className="absolute inset-0 bg-black/50 z-50 flex items-end fade-in" onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()}
-        className="w-full bg-[#c8b89a] rounded-t-3xl p-4 border-t-4 border-[#b87333]" style={{ maxHeight: "82%" }}>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full bg-[#c8b89a] rounded-t-3xl p-4 border-t-4 border-[#b87333]"
+        style={{ maxHeight: "82%" }}
+      >
         <div className="flex items-center justify-between mb-2">
           <h3 className="font-serif-d text-[16px] font-bold text-[#2c1810]">Modify</h3>
-          <button onClick={onClose} className="text-xl">✕</button>
+          <button onClick={onClose} className="text-xl">
+            ✕
+          </button>
         </div>
         <div className="flex gap-1 mb-2">
-          <button onClick={() => setTab("tasks")} className={`px-3 py-1 rounded-full text-[11px] ${tab === "tasks" ? "bg-[#2d4a1e] text-[#e8d5b0]" : "bg-[#e8d5a3] text-[#2c1810]"}`}>Tasks only</button>
-          <button onClick={() => setTab("goals")} className={`px-3 py-1 rounded-full text-[11px] ${tab === "goals" ? "bg-[#2d4a1e] text-[#e8d5b0]" : "bg-[#e8d5a3] text-[#2c1810]"}`}>Goals</button>
+          <button
+            onClick={() => setTab("tasks")}
+            className={`px-3 py-1 rounded-full text-[11px] ${tab === "tasks" ? "bg-[#2d4a1e] text-[#e8d5b0]" : "bg-[#e8d5a3] text-[#2c1810]"}`}
+          >
+            Tasks only
+          </button>
+          <button
+            onClick={() => setTab("goals")}
+            className={`px-3 py-1 rounded-full text-[11px] ${tab === "goals" ? "bg-[#2d4a1e] text-[#e8d5b0]" : "bg-[#e8d5a3] text-[#2c1810]"}`}
+          >
+            Goals
+          </button>
         </div>
         <div className="text-[9px] italic text-[#5a3a20] mb-2">
-          {tab === "tasks" ? "Editing tasks won't change your LifeLoad." : "Adding or removing goals will recalculate LifeLoad."}
+          {tab === "tasks"
+            ? "Editing tasks won't change your LifeLoad."
+            : "Adding or removing goals will recalculate LifeLoad."}
         </div>
 
         <div className="overflow-y-auto thin-scroll" style={{ maxHeight: 380 }}>
@@ -1819,20 +2614,37 @@ function ModifyModal({ allGoals, selectedGoals, goalSliders, tasksPerGoal, onClo
             <div className="space-y-2">
               {selectedGoals.map((g: string) => (
                 <div key={g} className="bg-[#e8d5a3] border border-[#b87333] rounded-lg p-2">
-                  <div className="font-bold text-[11px] text-[#2c1810]">{GOAL_ICONS[g] ?? "✨"} {g}</div>
+                  <div className="font-bold text-[11px] text-[#2c1810]">
+                    {GOAL_ICONS[g] ?? "✨"} {g}
+                  </div>
                   <div className="space-y-1 mt-1">
                     {(localTasks[g] ?? []).map((t: string, i: number) => (
                       <div key={i} className="flex gap-1 items-center">
-                        <input value={t} onChange={(e) => updateTask(g, i, e.target.value)}
-                          className="flex-1 rounded-full px-3 py-1 text-[11px] bg-white text-[#2c1810] border border-[#b87333]" />
-                        <button onClick={() => removeTask(g, i)} className="text-[#c44b3e] text-xs px-1">✕</button>
+                        <input
+                          value={t}
+                          onChange={(e) => updateTask(g, i, e.target.value)}
+                          className="flex-1 rounded-full px-3 py-1 text-[11px] bg-white text-[#2c1810] border border-[#b87333]"
+                        />
+                        <button
+                          onClick={() => removeTask(g, i)}
+                          className="text-[#c44b3e] text-xs px-1"
+                        >
+                          ✕
+                        </button>
                       </div>
                     ))}
-                    <button onClick={() => addTask(g)} className="text-[10px] text-[#2d4a1e] underline">+ Add task</button>
+                    <button
+                      onClick={() => addTask(g)}
+                      className="text-[10px] text-[#2d4a1e] underline"
+                    >
+                      + Add task
+                    </button>
                   </div>
                 </div>
               ))}
-              <button onClick={saveTasks} className="btn-copper w-full py-2 text-sm">Save tasks</button>
+              <button onClick={saveTasks} className="btn-copper w-full py-2 text-sm">
+                Save tasks
+              </button>
             </div>
           ) : (
             <div className="space-y-2">
@@ -1840,15 +2652,25 @@ function ModifyModal({ allGoals, selectedGoals, goalSliders, tasksPerGoal, onClo
                 const sel = localGoals.includes(g);
                 return (
                   <div key={g} onClick={() => toggleGoal(g)} className="goal-card cursor-pointer">
-                    <span>{GOAL_ICONS[g] ?? "✨"} {g}</span>
-                    <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold"
-                      style={{ background: sel ? "#4a7c59" : "transparent", border: `2px solid ${sel ? "#4a7c59" : "#d4843a"}`, color: "white" }}>
+                    <span>
+                      {GOAL_ICONS[g] ?? "✨"} {g}
+                    </span>
+                    <div
+                      className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold"
+                      style={{
+                        background: sel ? "#4a7c59" : "transparent",
+                        border: `2px solid ${sel ? "#4a7c59" : "#d4843a"}`,
+                        color: "white",
+                      }}
+                    >
                       {sel ? "✓" : ""}
                     </div>
                   </div>
                 );
               })}
-              <button onClick={saveGoals} className="btn-copper w-full py-2 text-sm">Save goals</button>
+              <button onClick={saveGoals} className="btn-copper w-full py-2 text-sm">
+                Save goals
+              </button>
             </div>
           )}
         </div>
@@ -1865,12 +2687,21 @@ function BottomNav({ onNav, active }: { onNav: (s: number) => void; active: numb
     { icon: "👤", label: "Profile", screen: 13 },
   ];
   return (
-    <div className="flex justify-around items-center py-1.5 border-t-2 border-[#b87333]" style={{ background: "#2d4a1e" }}>
+    <div
+      className="flex justify-around items-center py-1.5 border-t-2 border-[#b87333]"
+      style={{ background: "#2d4a1e" }}
+    >
       {items.map((it) => (
-        <button key={it.label} onClick={() => onNav(it.screen)} className="flex flex-col items-center text-[#e8d5b0] relative">
+        <button
+          key={it.label}
+          onClick={() => onNav(it.screen)}
+          className="flex flex-col items-center text-[#e8d5b0] relative"
+        >
           <span className="text-lg">{it.icon}</span>
           <span className="text-[8px]">{it.label}</span>
-          {active === it.screen && <div className="absolute -bottom-1.5 w-1 h-1 rounded-full bg-[#d4a843]" />}
+          {active === it.screen && (
+            <div className="absolute -bottom-1.5 w-1 h-1 rounded-full bg-[#d4a843]" />
+          )}
         </button>
       ))}
     </div>
@@ -1881,7 +2712,7 @@ function BottomNav({ onNav, active }: { onNav: (s: number) => void; active: numb
 function AISkeleton() {
   return (
     <div className="space-y-2">
-      {[1, 2, 3].map(i => (
+      {[1, 2, 3].map((i) => (
         <div key={i} className="bg-[#e8d5a3] p-2 rounded-lg animate-pulse">
           <div className="h-2 bg-[#b87333]/40 rounded w-1/2 mb-2"></div>
           <div className="h-2 bg-[#b87333]/20 rounded w-full mb-1"></div>
@@ -1898,21 +2729,32 @@ function DayBoostersPanel({ sessionId, snapshot, runApi, callRegenerateNudges, s
   const [error, setError] = useState(false);
 
   const load = async () => {
-    if (!sessionId || !runApi) { setError(true); setLoading(false); return; }
-    setLoading(true); setError(false);
+    if (!sessionId || !runApi) {
+      setError(true);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError(false);
     const result = await runApi(() => callRegenerateNudges({ data: { session_id: sessionId } }));
-    if (result) setSnapshot(result); else setError(true);
+    if (result) setSnapshot(result);
+    else setError(true);
     setLoading(false);
   };
-  useEffect(() => { if (!items || items.length === 0) load(); }, []);
+  useEffect(() => {
+    if (!items || items.length === 0) load();
+  }, []);
 
   if (loading) return <AISkeleton />;
-  if (error || !items || items.length === 0) return (
-    <div className="text-center text-[11px] text-[#2c1810] italic">
-      Aether is recalibrating…
-      <button onClick={load} className="btn-copper px-3 py-1 mt-2 text-xs block mx-auto">Retry</button>
-    </div>
-  );
+  if (error || !items || items.length === 0)
+    return (
+      <div className="text-center text-[11px] text-[#2c1810] italic">
+        Aether is recalibrating…
+        <button onClick={load} className="btn-copper px-3 py-1 mt-2 text-xs block mx-auto">
+          Retry
+        </button>
+      </div>
+    );
 
   return (
     <div className="space-y-2">
@@ -1926,70 +2768,122 @@ function DayBoostersPanel({ sessionId, snapshot, runApi, callRegenerateNudges, s
             </span>
           )}
           {b.action_type !== "tip" && b.link && (
-            <a href={b.link} target="_blank" rel="noopener" className="btn-copper inline-block px-3 py-1 text-[10px] mt-1.5">
+            <a
+              href={b.link}
+              target="_blank"
+              rel="noopener"
+              className="btn-copper inline-block px-3 py-1 text-[10px] mt-1.5"
+            >
               {b.action_type === "youtube" ? "▶ Watch" : "Open App →"}
             </a>
           )}
         </div>
       ))}
-      <button onClick={load} className="btn-olive w-full py-1.5 text-[11px]">↻ Regenerate Boosters</button>
+      <button onClick={load} className="btn-olive w-full py-1.5 text-[11px]">
+        ↻ Regenerate Boosters
+      </button>
     </div>
   );
 }
 
-function OpportunityMapPanel({ sessionId, snapshot, runApi, callRegenerateNudges, setSnapshot }: any) {
+function OpportunityMapPanel({
+  sessionId,
+  snapshot,
+  runApi,
+  callRegenerateNudges,
+  setSnapshot,
+}: any) {
   const items = snapshot?.suggestions?.opportunity_map;
   const [loading, setLoading] = useState(!items || items.length === 0);
   const [error, setError] = useState(false);
   const [mode, setMode] = useState<"text" | "visual">("text");
 
   const load = async () => {
-    if (!sessionId || !runApi) { setError(true); setLoading(false); return; }
-    setLoading(true); setError(false);
+    if (!sessionId || !runApi) {
+      setError(true);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError(false);
     const result = await runApi(() => callRegenerateNudges({ data: { session_id: sessionId } }));
-    if (result) setSnapshot(result); else setError(true);
+    if (result) setSnapshot(result);
+    else setError(true);
     setLoading(false);
   };
-  useEffect(() => { if (!items || items.length === 0) load(); }, []);
+  useEffect(() => {
+    if (!items || items.length === 0) load();
+  }, []);
 
   if (loading) return <AISkeleton />;
-  if (error || !items || items.length === 0) return (
-    <div className="text-center text-[11px] text-[#2c1810] italic">
-      Aether is recalibrating…
-      <button onClick={load} className="btn-copper px-3 py-1 mt-2 text-xs block mx-auto">Retry</button>
-    </div>
-  );
+  if (error || !items || items.length === 0)
+    return (
+      <div className="text-center text-[11px] text-[#2c1810] italic">
+        Aether is recalibrating…
+        <button onClick={load} className="btn-copper px-3 py-1 mt-2 text-xs block mx-auto">
+          Retry
+        </button>
+      </div>
+    );
 
   return (
     <div className="space-y-2">
       <div className="flex gap-1">
-        <button onClick={() => setMode("text")}
-          className={`px-3 py-1 rounded-full text-[10px] ${mode === "text" ? "bg-[#2d4a1e] text-[#e8d5b0]" : "bg-[#e8d5a3] text-[#2c1810]"}`}>Text</button>
-        <button onClick={() => setMode("visual")}
-          className={`px-3 py-1 rounded-full text-[10px] ${mode === "visual" ? "bg-[#2d4a1e] text-[#e8d5b0]" : "bg-[#e8d5a3] text-[#2c1810]"}`}>Visual</button>
+        <button
+          onClick={() => setMode("text")}
+          className={`px-3 py-1 rounded-full text-[10px] ${mode === "text" ? "bg-[#2d4a1e] text-[#e8d5b0]" : "bg-[#e8d5a3] text-[#2c1810]"}`}
+        >
+          Text
+        </button>
+        <button
+          onClick={() => setMode("visual")}
+          className={`px-3 py-1 rounded-full text-[10px] ${mode === "visual" ? "bg-[#2d4a1e] text-[#e8d5b0]" : "bg-[#e8d5a3] text-[#2c1810]"}`}
+        >
+          Visual
+        </button>
       </div>
 
-      {mode === "text" && items.map((c: any, i: number) => (
-        <div key={i} className="rounded-lg p-2" style={{ background: "#2d4a1e", color: "#e8d5b0" }}>
-          <div className="font-bold text-[12px] text-[#d4a843]">⚡ {c.title}</div>
-          <div className="text-[10px] mt-1">{c.description}</div>
-          {c.task1 && (
-            <div className="text-[10px] mt-1">
-              <div>• {c.task1} {c.goal1 && <span className="text-[#a3c54a] text-[8px]">({c.goal1})</span>}</div>
-              {c.task2 && <div>• {c.task2} <span className="text-[#a3c54a] text-[8px]">({c.goal2})</span></div>}
-            </div>
-          )}
-          <div className="flex justify-between items-center mt-1.5">
-            {typeof c.time_saved_minutes === "number" && (
-              <span className="text-[9px] bg-[#4a7c59] text-white px-2 py-0.5 rounded-full">Saves {c.time_saved_minutes} min</span>
+      {mode === "text" &&
+        items.map((c: any, i: number) => (
+          <div
+            key={i}
+            className="rounded-lg p-2"
+            style={{ background: "#2d4a1e", color: "#e8d5b0" }}
+          >
+            <div className="font-bold text-[12px] text-[#d4a843]">⚡ {c.title}</div>
+            <div className="text-[10px] mt-1">{c.description}</div>
+            {c.task1 && (
+              <div className="text-[10px] mt-1">
+                <div>
+                  • {c.task1}{" "}
+                  {c.goal1 && <span className="text-[#a3c54a] text-[8px]">({c.goal1})</span>}
+                </div>
+                {c.task2 && (
+                  <div>
+                    • {c.task2} <span className="text-[#a3c54a] text-[8px]">({c.goal2})</span>
+                  </div>
+                )}
+              </div>
             )}
-            {c.difficulty && (
-              <span className={`text-[9px] px-2 py-0.5 rounded-full ${c.difficulty === "Easy" ? "bg-[#4a7c59]" : "bg-[#d4843a]"} text-white`}>{c.difficulty}</span>
+            <div className="flex justify-between items-center mt-1.5">
+              {typeof c.time_saved_minutes === "number" && (
+                <span className="text-[9px] bg-[#4a7c59] text-white px-2 py-0.5 rounded-full">
+                  Saves {c.time_saved_minutes} min
+                </span>
+              )}
+              {c.difficulty && (
+                <span
+                  className={`text-[9px] px-2 py-0.5 rounded-full ${c.difficulty === "Easy" ? "bg-[#4a7c59]" : "bg-[#d4843a]"} text-white`}
+                >
+                  {c.difficulty}
+                </span>
+              )}
+            </div>
+            {c.justification && (
+              <div className="text-[9px] italic mt-1 text-[#e8d5b0]/80">{c.justification}</div>
             )}
           </div>
-          {c.justification && <div className="text-[9px] italic mt-1 text-[#e8d5b0]/80">{c.justification}</div>}
-        </div>
-      ))}
+        ))}
 
       {mode === "visual" && (
         <div className="space-y-2">
@@ -2014,12 +2908,24 @@ function OpportunityMapPanel({ sessionId, snapshot, runApi, callRegenerateNudges
         </div>
       )}
 
-      <button onClick={load} className="btn-olive w-full py-1.5 text-[11px]">↻ Regenerate Map</button>
+      <button onClick={load} className="btn-olive w-full py-1.5 text-[11px]">
+        ↻ Regenerate Map
+      </button>
     </div>
   );
 }
 
-function FlowBox({ label, sub, highlight, pill }: { label: string; sub?: string; highlight?: boolean; pill?: boolean }) {
+function FlowBox({
+  label,
+  sub,
+  highlight,
+  pill,
+}: {
+  label: string;
+  sub?: string;
+  highlight?: boolean;
+  pill?: boolean;
+}) {
   return (
     <div
       className={`flex-1 min-w-0 ${pill ? "rounded-full" : "rounded-md"} px-1.5 py-1 text-center`}
@@ -2044,23 +2950,35 @@ function SmartSpendPanel({ sessionId, snapshot, runApi, callRegenerateNudges, se
   const [error, setError] = useState(false);
 
   const load = async () => {
-    if (!sessionId || !runApi) { setError(true); setLoading(false); return; }
-    setLoading(true); setError(false);
+    if (!sessionId || !runApi) {
+      setError(true);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError(false);
     const result = await runApi(() => callRegenerateNudges({ data: { session_id: sessionId } }));
-    if (result) setSnapshot(result); else setError(true);
+    if (result) setSnapshot(result);
+    else setError(true);
     setLoading(false);
   };
-  useEffect(() => { if (!items || items.length === 0) load(); }, []);
+  useEffect(() => {
+    if (!items || items.length === 0) load();
+  }, []);
 
   if (loading) return <AISkeleton />;
-  if (error || !items || items.length === 0) return (
-    <div className="text-center text-[11px] text-[#2c1810] italic">
-      Aether is recalibrating…
-      <button onClick={load} className="btn-copper px-3 py-1 mt-2 text-xs block mx-auto">Retry</button>
-    </div>
-  );
+  if (error || !items || items.length === 0)
+    return (
+      <div className="text-center text-[11px] text-[#2c1810] italic">
+        Aether is recalibrating…
+        <button onClick={load} className="btn-copper px-3 py-1 mt-2 text-xs block mx-auto">
+          Retry
+        </button>
+      </div>
+    );
 
-  const urgencyColor = (u: string) => u === "High" ? "bg-[#c44b3e]" : u === "Medium" ? "bg-[#d4843a]" : "bg-[#4a7c59]";
+  const urgencyColor = (u: string) =>
+    u === "High" ? "bg-[#c44b3e]" : u === "Medium" ? "bg-[#d4843a]" : "bg-[#4a7c59]";
 
   return (
     <div className="space-y-2">
@@ -2068,66 +2986,151 @@ function SmartSpendPanel({ sessionId, snapshot, runApi, callRegenerateNudges, se
         <div key={i} className="bg-[#e8d5a3] border border-[#b87333] rounded-lg p-2">
           <div className="flex items-center justify-between">
             <span className="font-bold text-[11px] text-[#2c1810] flex-1">{s.title}</span>
-            {s.urgency && <span className={`text-[8px] px-2 py-0.5 rounded-full text-white ${urgencyColor(s.urgency)}`}>{s.urgency}</span>}
+            {s.urgency && (
+              <span
+                className={`text-[8px] px-2 py-0.5 rounded-full text-white ${urgencyColor(s.urgency)}`}
+              >
+                {s.urgency}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-2 mt-1">
             {s.price && <span className="font-bold text-[#b87333] text-[12px]">{s.price}</span>}
             {typeof s.time_saved_minutes === "number" && (
-              <span className="text-[9px] bg-[#4a7c59] text-white px-2 py-0.5 rounded-full">Saves {s.time_saved_minutes} min</span>
+              <span className="text-[9px] bg-[#4a7c59] text-white px-2 py-0.5 rounded-full">
+                Saves {s.time_saved_minutes} min
+              </span>
             )}
           </div>
           <div className="text-[10px] italic text-[#2c1810] mt-1">{s.description}</div>
-          {s.link && <a href={s.link} target="_blank" rel="noopener" className="btn-copper inline-block px-3 py-1 text-[10px] mt-1.5">Search →</a>}
+          {s.link && (
+            <a
+              href={s.link}
+              target="_blank"
+              rel="noopener"
+              className="btn-copper inline-block px-3 py-1 text-[10px] mt-1.5"
+            >
+              Search →
+            </a>
+          )}
         </div>
       ))}
       <div className="text-[8px] italic text-[#5a3a20] text-center">Prices approximate.</div>
-      <button onClick={load} className="btn-olive w-full py-1.5 text-[11px]">↻ Regenerate Suggestions</button>
+      <button onClick={load} className="btn-olive w-full py-1.5 text-[11px]">
+        ↻ Regenerate Suggestions
+      </button>
     </div>
   );
 }
 
-function SidePanel({ panelId, dist, onClose, onNav, sessionId, snapshot, setSnapshot, runApi, callRegenerateNudges }: any) {
-  let title = ""; let content: React.ReactNode = null;
+function SidePanel({
+  panelId,
+  dist,
+  onClose,
+  onNav,
+  sessionId,
+  snapshot,
+  setSnapshot,
+  runApi,
+  callRegenerateNudges,
+}: any) {
+  let title = "";
+  let content: React.ReactNode = null;
   if (panelId === "opp") {
     title = "Opportunity Map";
-    content = <OpportunityMapPanel sessionId={sessionId} snapshot={snapshot} setSnapshot={setSnapshot} runApi={runApi} callRegenerateNudges={callRegenerateNudges} />;
+    content = (
+      <OpportunityMapPanel
+        sessionId={sessionId}
+        snapshot={snapshot}
+        setSnapshot={setSnapshot}
+        runApi={runApi}
+        callRegenerateNudges={callRegenerateNudges}
+      />
+    );
   } else if (panelId === "boost") {
     title = "Day Boosters";
-    content = <DayBoostersPanel sessionId={sessionId} snapshot={snapshot} setSnapshot={setSnapshot} runApi={runApi} callRegenerateNudges={callRegenerateNudges} />;
+    content = (
+      <DayBoostersPanel
+        sessionId={sessionId}
+        snapshot={snapshot}
+        setSnapshot={setSnapshot}
+        runApi={runApi}
+        callRegenerateNudges={callRegenerateNudges}
+      />
+    );
   } else if (panelId === "spend") {
     title = "Smart Spend";
-    content = <SmartSpendPanel sessionId={sessionId} snapshot={snapshot} setSnapshot={setSnapshot} runApi={runApi} callRegenerateNudges={callRegenerateNudges} />;
+    content = (
+      <SmartSpendPanel
+        sessionId={sessionId}
+        snapshot={snapshot}
+        setSnapshot={setSnapshot}
+        runApi={runApi}
+        callRegenerateNudges={callRegenerateNudges}
+      />
+    );
   } else if (panelId === "day") {
     title = "Day Blueprint";
     content = (
       <div className="text-[11px] space-y-2">
-        {dist.flatMap((d: any) => d.tasks.slice(0, 1).map((t: any, i: number) => (
-          <div key={d.goal + i} className="bg-[#e8d5a3] p-2 rounded-lg flex justify-between">
-            <span>{t.name}</span><span className="text-[#4a7c59]">{t.minutes} min</span>
-          </div>
-        )))}
-        <button onClick={() => { onClose(); onNav(12); }} className="btn-copper w-full mt-2 py-2 text-xs">View Day Output</button>
+        {dist.flatMap((d: any) =>
+          d.tasks.slice(0, 1).map((t: any, i: number) => (
+            <div key={d.goal + i} className="bg-[#e8d5a3] p-2 rounded-lg flex justify-between">
+              <span>{t.name}</span>
+              <span className="text-[#4a7c59]">{t.minutes} min</span>
+            </div>
+          )),
+        )}
+        <button
+          onClick={() => {
+            onClose();
+            onNav(12);
+          }}
+          className="btn-copper w-full mt-2 py-2 text-xs"
+        >
+          View Day Output
+        </button>
       </div>
     );
   }
 
   return (
     <div className="absolute inset-0 bg-black/40 z-40 flex items-end" onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()}
-        className="w-full bg-[#c8b89a] rounded-t-3xl p-4 border-t-4 border-[#b87333]" style={{ maxHeight: "70%" }}>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full bg-[#c8b89a] rounded-t-3xl p-4 border-t-4 border-[#b87333]"
+        style={{ maxHeight: "70%" }}
+      >
         <div className="flex items-center justify-between mb-2">
           <h3 className="font-serif-d text-[18px] font-bold text-[#2c1810]">{title}</h3>
-          <button onClick={onClose} className="text-xl">✕</button>
+          <button onClick={onClose} className="text-xl">
+            ✕
+          </button>
         </div>
-        <div className="overflow-y-auto thin-scroll" style={{ maxHeight: 440 }}>{content}</div>
+        <div className="overflow-y-auto thin-scroll" style={{ maxHeight: 440 }}>
+          {content}
+        </div>
       </div>
     </div>
   );
 }
 
 // ============ SCREEN 12 — DAY OUTPUT ============
-function Screen12({ username, onNav, userProfile, aetherInsights, setAetherInsights,
-  sessionId, snapshot, setSnapshot, runApi, callGetChecklist, callSubmitDayOutput, callLifeHappened }: any) {
+function Screen12({
+  username,
+  onNav,
+  userProfile,
+  aetherInsights,
+  setAetherInsights,
+  sessionId,
+  snapshot,
+  setSnapshot,
+  runApi,
+  callGetChecklist,
+  callSubmitDayOutput,
+  callLifeHappened,
+}: any) {
+  const posthog = usePostHog();
 
   const [checklist, setChecklist] = useState<any[]>([]);
   const [ticked, setTicked] = useState<Set<number>>(new Set());
@@ -2140,7 +3143,11 @@ function Screen12({ username, onNav, userProfile, aetherInsights, setAetherInsig
 
   useEffect(() => {
     (async () => {
-      if (!sessionId) { setListError(true); setLoadingList(false); return; }
+      if (!sessionId) {
+        setListError(true);
+        setLoadingList(false);
+        return;
+      }
       setLoadingList(true);
       try {
         const res = await callGetChecklist({ data: { session_id: sessionId } });
@@ -2157,7 +3164,8 @@ function Screen12({ username, onNav, userProfile, aetherInsights, setAetherInsig
   const toggle = (index: number) => {
     setTicked((prev) => {
       const next = new Set(prev);
-      if (next.has(index)) next.delete(index); else next.add(index);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
       return next;
     });
   };
@@ -2170,10 +3178,17 @@ function Screen12({ username, onNav, userProfile, aetherInsights, setAetherInsig
     const uncheckedIndices = checklist.map((c) => c.index).filter((i) => !ticked.has(i));
     const dayLabel = new Date().toLocaleDateString("en-US", { weekday: "long" });
     const result: any = await runApi(() =>
-      callSubmitDayOutput({ data: { session_id: sessionId, day_label: dayLabel, unticked_indices: uncheckedIndices } })
+      callSubmitDayOutput({
+        data: { session_id: sessionId, day_label: dayLabel, unticked_indices: uncheckedIndices },
+      }),
     );
     setRecalibrating(false);
     if (!result) return;
+    posthog.capture("day_submitted", {
+      tasks_completed: checklist.length - uncheckedIndices.length,
+      tasks_missed: uncheckedIndices.length,
+      total_tasks: checklist.length,
+    });
     setSnapshot(result);
     setSubmitResult(result);
     setSubmitted(true);
@@ -2185,8 +3200,11 @@ function Screen12({ username, onNav, userProfile, aetherInsights, setAetherInsig
     const result: any = await runApi(() => callLifeHappened({ data: { session_id: sessionId } }));
     setRecalibrating(false);
     if (!result) return;
+    posthog.capture("life_happened_triggered");
     setSnapshot(result);
-    setLifeHappenedMsg(result.pending_recalibration?.message ?? "Recalibrated — your week stays on track.");
+    setLifeHappenedMsg(
+      result.pending_recalibration?.message ?? "Recalibrated — your week stays on track.",
+    );
   };
 
   return (
@@ -2205,12 +3223,27 @@ function Screen12({ username, onNav, userProfile, aetherInsights, setAetherInsig
 
       <div className="px-4">
         <h2 className="font-serif-d text-[20px] font-bold text-[#2c1810]">How was your day?</h2>
-        <div className="text-[10px] text-[#5a3a20]">{new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}</div>
-        <div className="text-[11px] font-bold text-[#2c1810] mt-2">Performance Recap (Auto-Validated)</div>
-        <div className="text-[9px] italic text-[#5a3a20]">I've marked your tasks as done {username}. Untick anything life didn't allow — no judgment.</div>
+        <div className="text-[10px] text-[#5a3a20]">
+          {new Date().toLocaleDateString("en-US", {
+            weekday: "long",
+            month: "long",
+            day: "numeric",
+          })}
+        </div>
+        <div className="text-[11px] font-bold text-[#2c1810] mt-2">
+          Performance Recap (Auto-Validated)
+        </div>
+        <div className="text-[9px] italic text-[#5a3a20]">
+          I've marked your tasks as done {username}. Untick anything life didn't allow — no
+          judgment.
+        </div>
       </div>
 
-      {loadingList && <div className="flex-1 flex items-center justify-center"><AISkeleton /></div>}
+      {loadingList && (
+        <div className="flex-1 flex items-center justify-center">
+          <AISkeleton />
+        </div>
+      )}
 
       {!loadingList && listError && (
         <div className="flex-1 flex items-center justify-center text-[11px] text-[#2c1810] italic px-4 text-center">
@@ -2227,17 +3260,27 @@ function Screen12({ username, onNav, userProfile, aetherInsights, setAetherInsig
       {!loadingList && !listError && checklist.length > 0 && (
         <div className="flex-1 overflow-y-auto thin-scroll px-3 mt-2 space-y-1.5">
           {checklist.map((c) => (
-            <div key={c.index} className="bg-[#e8d5a3] border border-[#b87333] rounded-xl p-2 flex items-center gap-2">
-              <button onClick={() => toggle(c.index)} disabled={submitted}
+            <div
+              key={c.index}
+              className="bg-[#e8d5a3] border border-[#b87333] rounded-xl p-2 flex items-center gap-2"
+            >
+              <button
+                onClick={() => toggle(c.index)}
+                disabled={submitted}
                 className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
                 style={{
                   background: ticked.has(c.index) ? "#4a7c59" : "transparent",
                   border: `2px solid ${ticked.has(c.index) ? "#4a7c59" : "#c44b3e"}`,
                   color: "white",
-                }}>{ticked.has(c.index) ? "✓" : ""}</button>
+                }}
+              >
+                {ticked.has(c.index) ? "✓" : ""}
+              </button>
               <div className="flex-1">
                 <div className="text-[11px] font-bold text-[#2c1810]">{c.title}</div>
-                <div className="text-[9px] text-[#5a3a20]">{c.goal_title} • {c.task_title} • {Math.round(c.expected_hours * 60)} min</div>
+                <div className="text-[9px] text-[#5a3a20]">
+                  {c.goal_title} • {c.task_title} • {Math.round(c.expected_hours * 60)} min
+                </div>
               </div>
             </div>
           ))}
@@ -2247,7 +3290,9 @@ function Screen12({ username, onNav, userProfile, aetherInsights, setAetherInsig
       {!loadingList && !listError && checklist.length > 0 && !submitted && (
         <div className="px-3 py-2 space-y-1">
           <div className="text-[10px] text-[#2c1810]">Tasks missed: {missedCount}</div>
-          <button onClick={submitDay} className="btn-copper w-full py-2 text-xs">Submit Day</button>
+          <button onClick={submitDay} className="btn-copper w-full py-2 text-xs">
+            Submit Day
+          </button>
         </div>
       )}
 
@@ -2263,8 +3308,12 @@ function Screen12({ username, onNav, userProfile, aetherInsights, setAetherInsig
           </div>
           {submitResult.should_offer_life_happened && (
             <>
-              <button onClick={lifeHappened} className="btn-copper w-full py-2 text-xs mt-2">LIFE HAPPENED</button>
-              <div className="text-[9px] text-center text-[#5a3a20] italic mt-1">Aether will recalibrate — no guilt, no penalty.</div>
+              <button onClick={lifeHappened} className="btn-copper w-full py-2 text-xs mt-2">
+                LIFE HAPPENED
+              </button>
+              <div className="text-[9px] text-center text-[#5a3a20] italic mt-1">
+                Aether will recalibrate — no guilt, no penalty.
+              </div>
             </>
           )}
         </div>
@@ -2283,7 +3332,9 @@ function Screen12({ username, onNav, userProfile, aetherInsights, setAetherInsig
         <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-[#e8d5a3] p-5 rounded-2xl text-center">
             <BigGear size={60} spin />
-            <div className="text-[12px] font-bold text-[#2c1810] mt-2">Aether is Aetherizing your week…</div>
+            <div className="text-[12px] font-bold text-[#2c1810] mt-2">
+              Aether is Aetherizing your week…
+            </div>
           </div>
         </div>
       )}
@@ -2294,7 +3345,15 @@ function Screen12({ username, onNav, userProfile, aetherInsights, setAetherInsig
 }
 
 // ============ SCREEN 13 — PROFILE (with optional demographics) ============
-function Screen13({ username, profession, userProfile, setUserProfile, selectedGoals, vaultedTasks, onNav }: any) {
+function Screen13({
+  username,
+  profession,
+  userProfile,
+  setUserProfile,
+  selectedGoals,
+  vaultedTasks,
+  onNav,
+}: any) {
   const [editing, setEditing] = useState(false);
   const [age, setAge] = useState(userProfile?.age || "");
   const [gender, setGender] = useState(userProfile?.gender || "");
@@ -2313,16 +3372,26 @@ function Screen13({ username, profession, userProfile, setUserProfile, selectedG
         <Logo size={26} />
       </div>
       <div className="px-4 flex flex-col items-center">
-        <div className="w-20 h-20 rounded-full flex items-center justify-center text-3xl"
-          style={{ background: "radial-gradient(circle, #d4a843, #b87333 60%, #6b3f1a)", border: "3px solid #6b3f1a", color: "#fff" }}>
+        <div
+          className="w-20 h-20 rounded-full flex items-center justify-center text-3xl"
+          style={{
+            background: "radial-gradient(circle, #d4a843, #b87333 60%, #6b3f1a)",
+            border: "3px solid #6b3f1a",
+            color: "#fff",
+          }}
+        >
           {(username?.[0] || "?").toUpperCase()}
         </div>
-        <h2 className="font-serif-d text-[22px] font-bold text-[#2c1810] mt-2">{username || "Friend"}</h2>
+        <h2 className="font-serif-d text-[22px] font-bold text-[#2c1810] mt-2">
+          {username || "Friend"}
+        </h2>
         <div className="text-[11px] text-[#5a3a20]">{profession || "—"} · DoneHo member</div>
       </div>
 
       <div className="px-4 mt-4">
-        <div className="text-[11px] font-bold text-[#2c1810] mb-2">Weekly Snapshot <span className="text-[9px] italic text-[#5a3a20]">(mock)</span></div>
+        <div className="text-[11px] font-bold text-[#2c1810] mb-2">
+          Weekly Snapshot <span className="text-[9px] italic text-[#5a3a20]">(mock)</span>
+        </div>
         <div className="grid grid-cols-2 gap-2">
           {[
             { label: "Weeks planned", value: "1" },
@@ -2343,27 +3412,60 @@ function Screen13({ username, profession, userProfile, setUserProfile, selectedG
           <div className="flex items-center justify-between">
             <div>
               <div className="text-[11px] font-bold text-[#2c1810]">Optional details</div>
-              <div className="text-[9px] italic text-[#5a3a20]">Optional — helps with future personalization features.</div>
+              <div className="text-[9px] italic text-[#5a3a20]">
+                Optional — helps with future personalization features.
+              </div>
             </div>
-            <button onClick={() => setEditing(!editing)} className="btn-olive px-2 py-0.5 text-[10px]">{editing ? "Cancel" : "Edit"}</button>
+            <button
+              onClick={() => setEditing(!editing)}
+              className="btn-olive px-2 py-0.5 text-[10px]"
+            >
+              {editing ? "Cancel" : "Edit"}
+            </button>
           </div>
           {!editing ? (
             <div className="text-[11px] text-[#2c1810] mt-2 space-y-0.5">
-              <div>Age: {userProfile?.age || <span className="italic text-[#5a3a20]">not set</span>}</div>
-              <div>Gender: {userProfile?.gender || <span className="italic text-[#5a3a20]">not set</span>}</div>
-              <div>Location: {userProfile?.location || <span className="italic text-[#5a3a20]">not set</span>}</div>
+              <div>
+                Age: {userProfile?.age || <span className="italic text-[#5a3a20]">not set</span>}
+              </div>
+              <div>
+                Gender:{" "}
+                {userProfile?.gender || <span className="italic text-[#5a3a20]">not set</span>}
+              </div>
+              <div>
+                Location:{" "}
+                {userProfile?.location || <span className="italic text-[#5a3a20]">not set</span>}
+              </div>
             </div>
           ) : (
             <div className="space-y-2 mt-2">
-              <input value={age} inputMode="numeric" onChange={(e) => setAge(e.target.value.replace(/\D/g, "").slice(0, 3))}
-                placeholder="Age" className="input-pill w-full text-sm" />
-              <select value={gender} onChange={(e) => setGender(e.target.value)} className="input-pill w-full text-sm">
+              <input
+                value={age}
+                inputMode="numeric"
+                onChange={(e) => setAge(e.target.value.replace(/\D/g, "").slice(0, 3))}
+                placeholder="Age"
+                className="input-pill w-full text-sm"
+              />
+              <select
+                value={gender}
+                onChange={(e) => setGender(e.target.value)}
+                className="input-pill w-full text-sm"
+              >
                 <option value="">Gender</option>
-                <option>Male</option><option>Female</option><option>Non-binary</option><option>Prefer not to say</option>
+                <option>Male</option>
+                <option>Female</option>
+                <option>Non-binary</option>
+                <option>Prefer not to say</option>
               </select>
-              <input value={location} onChange={(e) => setLocation(e.target.value)}
-                placeholder="City" className="input-pill w-full text-sm" />
-              <button onClick={save} className="btn-copper w-full py-1.5 text-[11px]">Save</button>
+              <input
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                placeholder="City"
+                className="input-pill w-full text-sm"
+              />
+              <button onClick={save} className="btn-copper w-full py-1.5 text-[11px]">
+                Save
+              </button>
             </div>
           )}
         </div>

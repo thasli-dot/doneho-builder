@@ -8,6 +8,7 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
+import { PostHogProvider } from "posthog-js/react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -78,17 +79,34 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "DoneHo — Better Days for the Best" },
-      { name: "description", content: "Your day, synchronized. Steampunk productivity for resilient weeks." },
+      {
+        name: "description",
+        content: "Your day, synchronized. Steampunk productivity for resilient weeks.",
+      },
       { name: "author", content: "Lovable" },
       { property: "og:title", content: "DoneHo — Better Days for the Best" },
-      { property: "og:description", content: "Your day, synchronized. Steampunk productivity for resilient weeks." },
+      {
+        property: "og:description",
+        content: "Your day, synchronized. Steampunk productivity for resilient weeks.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
       { name: "twitter:title", content: "DoneHo — Better Days for the Best" },
-      { name: "twitter:description", content: "Your day, synchronized. Steampunk productivity for resilient weeks." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/c259d06f-7a01-49d5-ab5d-30ff4780f9f9/id-preview-b6fc62f9--befdd4bf-dcf7-49fc-8789-a6b791b8f469.lovable.app-1783170462501.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/c259d06f-7a01-49d5-ab5d-30ff4780f9f9/id-preview-b6fc62f9--befdd4bf-dcf7-49fc-8789-a6b791b8f469.lovable.app-1783170462501.png" },
+      {
+        name: "twitter:description",
+        content: "Your day, synchronized. Steampunk productivity for resilient weeks.",
+      },
+      {
+        property: "og:image",
+        content:
+          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/c259d06f-7a01-49d5-ab5d-30ff4780f9f9/id-preview-b6fc62f9--befdd4bf-dcf7-49fc-8789-a6b791b8f469.lovable.app-1783170462501.png",
+      },
+      {
+        name: "twitter:image",
+        content:
+          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/c259d06f-7a01-49d5-ab5d-30ff4780f9f9/id-preview-b6fc62f9--befdd4bf-dcf7-49fc-8789-a6b791b8f469.lovable.app-1783170462501.png",
+      },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
@@ -113,7 +131,18 @@ function RootShell({ children }: { children: ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        {children}
+        <PostHogProvider
+          apiKey={import.meta.env.VITE_PUBLIC_POSTHOG_PROJECT_TOKEN!}
+          options={{
+            api_host: "/ingest",
+            ui_host: import.meta.env.VITE_PUBLIC_POSTHOG_HOST || "https://us.posthog.com",
+            defaults: "2025-05-24",
+            capture_exceptions: true,
+            debug: import.meta.env.DEV,
+          }}
+        >
+          {children}
+        </PostHogProvider>
         <Scripts />
       </body>
     </html>
